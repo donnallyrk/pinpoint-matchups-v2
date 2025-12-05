@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional: Dark mode background by default to match GridPoint aesthetic */
+body {
+  @apply bg-slate-950 text-slate-200;
+}
