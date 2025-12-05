@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { signInAnonymously, onAuthStateChanged, signOut } from 'firebase/auth';
+import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { 
   collection, 
   doc, 
@@ -25,13 +25,50 @@ import {
 } from 'lucide-react';
 
 // --- IMPORTS ---
-import { auth, db, appId } from './firebase';
+import { auth, db, appId, googleProvider } from './firebase';
 import { Button, Card } from './utils';
 import { createTeam, createSchedule, COLLECTIONS } from './models';
 import TeamCard from './components/TeamCard';
 import ScheduleList from './components/ScheduleList'; 
 import MatchmakingWorkflow from './components/MatchmakingWorkflow'; 
 import RosterEditor from './components/RosterEditor'; 
+
+// --- COMPONENT: LOGIN PAGE ---
+const LoginPage = () => {
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error("Login failed:", error);
+      alert(`Login failed: ${error.message}`);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 animate-in fade-in duration-700">
+      <div className="max-w-md w-full space-y-8 text-center">
+        <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800 shadow-2xl backdrop-blur-xl">
+          <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-16 h-16 rounded-xl mx-auto flex items-center justify-center mb-6 shadow-lg shadow-blue-900/20">
+            <Users className="text-white" size={32} />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Pinpoint Matchups</h1>
+          <p className="text-slate-400 mb-8 leading-relaxed">
+            The modern wrestling management suite. Manage rosters, schedule events, and automate pairings with precision.
+          </p>
+          
+          <button 
+            onClick={handleGoogleLogin} 
+            className="w-full flex items-center justify-center py-4 px-4 bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]"
+          >
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 mr-3" alt="Google" />
+            Sign in with Google
+          </button>
+        </div>
+        <p className="text-slate-600 text-xs">By signing in, you agree to our Terms of Service.</p>
+      </div>
+    </div>
+  );
+};
 
 // --- TEAM DASHBOARD COMPONENT ---
 const TeamDashboard = ({ team, user, onBack }) => {
@@ -300,7 +337,11 @@ const TeamDashboard = ({ team, user, onBack }) => {
                         <h2 className="text-xl font-bold text-white">Master Team Roster</h2>
                         <p className="text-slate-400 text-sm mt-1">Manage all wrestlers in your program.</p>
                     </div>
-                    <RosterEditor roster={roster} onChange={handleUpdateRoster} />
+                    <RosterEditor 
+                        roster={roster} 
+                        teamName={team.metadata.name} 
+                        onChange={handleUpdateRoster} 
+                    />
                 </Card>
             </div>
         )}
@@ -321,25 +362,36 @@ export default function App() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTeamData, setNewTeamData] = useState({ name: '', abbr: '', coaches: '' });
 
-  // Auth Listener
+  // Auth Listener (Updated for Google Auth)
   useEffect(() => {
-    signInAnonymously(auth).catch(console.error);
-    return onAuthStateChanged(auth, setUser);
+    // We do NOT use signInAnonymously anymore.
+    // Instead we wait for the user to login via the LoginPage
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return unsubscribe;
   }, []);
 
   // Fetch User's Teams
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+        setUserTeams([]);
+        return;
+    }
+    
+    // Safety check: ensure we have a valid UID before querying
+    if (!user.uid) return;
+
     const q = query(
       collection(db, 'artifacts', appId, COLLECTIONS.TEAMS),
       where('roles.owner', '==', user.uid)
     );
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const teams = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setUserTeams(teams);
-      setLoading(false);
     }, (error) => {
-        // Handle potential permission errors on logout
         console.log("Team list snapshot error:", error.code);
     });
     return () => unsubscribe();
@@ -347,7 +399,7 @@ export default function App() {
 
   const handleCreateTeam = async (e) => {
     e.preventDefault();
-    if (!user || !newTeamData.name) return; // Guard clause added here
+    if (!user || !newTeamData.name) return; 
     
     const coachesList = newTeamData.coaches.split(',').map(c => c.trim()).filter(Boolean);
     const newTeam = createTeam(user.uid, newTeamData.name, newTeamData.abbr, coachesList);
@@ -364,23 +416,23 @@ export default function App() {
   // Safe Sign Out
   const handleSignOut = async () => {
       try {
-          // Force UI to unmount components that have listeners attached
           setCurrentTeam(null);
-          setUserTeams([]); // Clear teams to prevent render error
-          setUser(null); 
-          // Then perform actual sign out
+          setUserTeams([]);
           await signOut(auth);
-          
-          // Re-sign in anonymously immediately so the app is usable as a guest/new user
-          // This prevents the "null user" state on the home screen
-          await signInAnonymously(auth);
+          // App will naturally re-render the LoginPage due to !user check
       } catch (error) {
           console.error("Error signing out:", error);
       }
   };
 
-  if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">Loading GridPoint...</div>;
+  if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">Loading Pinpoint...</div>;
 
+  // --- UNAUTHENTICATED STATE ---
+  if (!user) {
+      return <LoginPage />;
+  }
+
+  // --- AUTHENTICATED STATE ---
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-blue-500/30 overflow-hidden flex flex-col">
       {/* Top Nav */}
@@ -396,16 +448,24 @@ export default function App() {
               </span>
             </div>
             
-            {user && (
-              <div className="flex items-center space-x-4">
-                 <button className="text-sm text-slate-400 hover:text-white" onClick={handleSignOut}>
-                    <LogOut size={16} />
-                 </button>
-                 <div className="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600">
-                  <User size={16} />
+            <div className="flex items-center space-x-4">
+                <div className="flex items-center gap-3">
+                    <div className="text-right hidden sm:block">
+                        <div className="text-sm font-bold text-white">{user.displayName || 'Coach'}</div>
+                        <div className="text-xs text-slate-500">{user.email}</div>
+                    </div>
+                    {user.photoURL ? (
+                        <img src={user.photoURL} alt="User" className="h-8 w-8 rounded-full border border-slate-600" />
+                    ) : (
+                        <div className="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600">
+                            <User size={16} />
+                        </div>
+                    )}
                 </div>
-              </div>
-            )}
+                <button className="text-sm text-slate-400 hover:text-red-400 p-2 hover:bg-slate-800 rounded-lg transition-colors" onClick={handleSignOut} title="Sign Out">
+                    <LogOut size={18} />
+                </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -414,7 +474,7 @@ export default function App() {
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full overflow-hidden">
         
         {/* VIEW 1: TEAM DASHBOARD (Inside a Team) */}
-        {currentTeam && user ? (
+        {currentTeam ? (
           <TeamDashboard 
             team={currentTeam} 
             user={user} 
@@ -429,8 +489,7 @@ export default function App() {
                     <h1 className="text-3xl font-bold text-white tracking-tight">Your Teams</h1>
                     <p className="text-slate-400 mt-1">Select a team to manage rosters and schedules.</p>
                 </div>
-                {/* Only show Create Team if user exists, otherwise button is hidden or could trigger auth */}
-                {user && <Button onClick={() => setShowCreateModal(true)} icon={Plus}>Create Team</Button>}
+                <Button onClick={() => setShowCreateModal(true)} icon={Plus}>Create Team</Button>
             </div>
 
             {userTeams.length === 0 ? (
@@ -442,7 +501,7 @@ export default function App() {
                     <p className="text-slate-500 max-w-sm mx-auto mb-6">
                         You haven't created or joined any teams yet. Create a team to start generating matchups.
                     </p>
-                    {user && <Button onClick={() => setShowCreateModal(true)} variant="primary">Create Your First Team</Button>}
+                    <Button onClick={() => setShowCreateModal(true)} variant="primary">Create Your First Team</Button>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -450,7 +509,7 @@ export default function App() {
                         <TeamCard 
                             key={team.id} 
                             team={team} 
-                            isOwner={user && team.roles.owner === user.uid}
+                            isOwner={team.roles.owner === user.uid}
                             onClick={() => setCurrentTeam(team)} 
                         />
                     ))}

@@ -1,9 +1,8 @@
 // src/firebase.js
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth'; // Added GoogleAuthProvider
 import { getFirestore } from 'firebase/firestore';
 
-// Configuration loaded from .env.local via Vite
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -16,6 +15,5 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-
-// Helper to get the App ID for pathing
+export const googleProvider = new GoogleAuthProvider(); // Export the provider
 export const appId = 'pinpoint-matchups';
