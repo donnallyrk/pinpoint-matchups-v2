@@ -20,7 +20,7 @@ import {
 import { Button } from '../utils';
 import { createPlayer, getPlayerValidationIssues, isPlayerValid } from '../models';
 
-// --- HELPER ---
+// --- HELPERS ---
 const normalizeDate = (dateStr) => {
   if (!dateStr) return '';
   const cleanStr = dateStr.trim();
@@ -53,6 +53,9 @@ const normalizeDate = (dateStr) => {
   
   return null;
 };
+
+// ADDED: Missing helper function to fix crash
+const isValidIsoDate = (str) => /^\d{4}-\d{2}-\d{2}$/.test(str);
 
 const RosterEditor = ({ roster = [], teamName = "Team", onChange, onImportFromMaster }) => {
   const [showModal, setShowModal] = useState(false);
