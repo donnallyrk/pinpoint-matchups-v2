@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
+import { 
+  signInWithPopup, 
+  onAuthStateChanged, 
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword 
+} from 'firebase/auth';
 import { 
   collection, 
   doc, 
@@ -17,11 +23,12 @@ import {
   LogOut, 
   User, 
   Users, 
-  ChevronLeft,
-  X,
-  Settings,
-  MapPin,
-  Mail
+  ChevronLeft, 
+  X, 
+  Settings, 
+  MapPin, 
+  Mail,
+  Lock
 } from 'lucide-react';
 
 // --- IMPORTS ---
@@ -35,12 +42,41 @@ import RosterEditor from './components/RosterEditor';
 
 // --- COMPONENT: LOGIN PAGE ---
 const LoginPage = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLogin, setIsLogin] = useState(true); // Toggle between Login and Sign Up
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
   const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error("Login failed:", error);
-      alert(`Login failed: ${error.message}`);
+      setError(`Google Login failed: ${error.message}`);
+    }
+  };
+
+  const handleEmailAuth = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      if (isLogin) {
+        // Sign In
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        // Sign Up (Create User)
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+    } catch (err) {
+      console.error("Auth error:", err);
+      // Simplify Firebase error messages for the user
+      const msg = err.code ? err.code.replace('auth/', '').replace(/-/g, ' ') : err.message;
+      setError(msg.charAt(0).toUpperCase() + msg.slice(1));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,23 +84,93 @@ const LoginPage = () => {
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 animate-in fade-in duration-700">
       <div className="max-w-md w-full space-y-8 text-center">
         <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800 shadow-2xl backdrop-blur-xl">
+          
+          {/* Logo & Header */}
           <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-16 h-16 rounded-xl mx-auto flex items-center justify-center mb-6 shadow-lg shadow-blue-900/20">
             <Users className="text-white" size={32} />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Pinpoint Matchups</h1>
-          <p className="text-slate-400 mb-8 leading-relaxed">
-            The modern wrestling management suite. Manage rosters, schedule events, and automate pairings with precision.
+          <p className="text-slate-400 mb-6 leading-relaxed text-sm">
+            {isLogin ? 'Sign in to manage your team.' : 'Create an account to get started.'}
           </p>
+
+          {/* Email/Password Form */}
+          <form onSubmit={handleEmailAuth} className="space-y-4 text-left">
+            {error && (
+              <div className="bg-red-900/30 border border-red-800 text-red-200 text-xs p-3 rounded-lg">
+                {error}
+              </div>
+            )}
+            
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                <input 
+                  type="email" 
+                  required
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-slate-600 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="coach@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                <input 
+                  type="password" 
+                  required
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-slate-600 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-800"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-slate-900 px-2 text-slate-500">Or continue with</span>
+            </div>
+          </div>
           
+          {/* Google Button */}
           <button 
             onClick={handleGoogleLogin} 
-            className="w-full flex items-center justify-center py-4 px-4 bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]"
+            className="w-full flex items-center justify-center py-3 px-4 bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]"
           >
             <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 mr-3" alt="Google" />
-            Sign in with Google
+            Google
           </button>
         </div>
-        <p className="text-slate-600 text-xs">By signing in, you agree to our Terms of Service.</p>
+
+        {/* Toggle Login/Signup */}
+        <p className="text-slate-500 text-sm">
+          {isLogin ? "Don't have an account? " : "Already have an account? "}
+          <button 
+            onClick={() => { setIsLogin(!isLogin); setError(''); }} 
+            className="text-blue-400 hover:text-blue-300 font-bold hover:underline"
+          >
+            {isLogin ? 'Sign up' : 'Log in'}
+          </button>
+        </p>
       </div>
     </div>
   );
@@ -72,7 +178,7 @@ const LoginPage = () => {
 
 // --- TEAM DASHBOARD COMPONENT ---
 const TeamDashboard = ({ team, user, onBack }) => {
-  const [activeTab, setActiveTab] = useState('profile'); // profile | roster | schedules
+  const [activeTab, setActiveTab] = useState('schedules'); 
   const [schedules, setSchedules] = useState([]);
   const [roster, setRoster] = useState([]);
   const [currentSchedule, setCurrentSchedule] = useState(null); 
@@ -93,7 +199,17 @@ const TeamDashboard = ({ team, user, onBack }) => {
     const scheduleQuery = collection(db, 'artifacts', appId, COLLECTIONS.TEAMS, team.id, COLLECTIONS.EVENTS);
     const unsubSchedules = onSnapshot(scheduleQuery, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setSchedules(data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      
+      // SORT: Oldest -> Newest based on Date (or creation time if date missing)
+      const sortedData = data.sort((a, b) => {
+        const dateA = a.date || a.created_at;
+        const dateB = b.date || b.created_at;
+        if (dateA < dateB) return -1;
+        if (dateA > dateB) return 1;
+        return 0;
+      });
+      
+      setSchedules(sortedData);
     }, (error) => {
        console.log("Schedule listener stopped:", error.code);
     });
@@ -113,6 +229,13 @@ const TeamDashboard = ({ team, user, onBack }) => {
   const handleSaveProfile = async () => {
       try {
           const coachesArray = profileData.coaches.split(',').map(c => c.trim()).filter(Boolean);
+          
+          // --- VALIDATION: MAX 2 COACHES ---
+          if (coachesArray.length > 2) {
+            alert("You can only add up to 2 Assistant Coaches.");
+            return;
+          }
+          
           await updateDoc(doc(db, 'artifacts', appId, COLLECTIONS.TEAMS, team.id), {
               'metadata.name': profileData.name,
               'metadata.abbreviation': profileData.abbreviation,
@@ -188,20 +311,7 @@ const TeamDashboard = ({ team, user, onBack }) => {
                     </div>
                   </div>
                   
-                  {/* Status Dropdown */}
-                  <div className="flex gap-2">
-                     <select 
-                        value={currentSchedule.schedulingStatus}
-                        onChange={e => handleUpdateSchedule(currentSchedule.id, { schedulingStatus: e.target.value })}
-                        className="bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                     >
-                        <option value="not_started">Not Started</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="issue">Issue / Alert</option>
-                        <option value="complete">Complete</option>
-                        <option value="published">Published</option>
-                     </select>
-                  </div>
+                  {/* Status Dropdown REMOVED */}
               </div>
 
               {/* UNIFIED WORKFLOW RENDER */}
@@ -297,7 +407,7 @@ const TeamDashboard = ({ team, user, onBack }) => {
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                <Mail size={14}/> Assistant Coaches
+                                <Mail size={14}/> Assistant Coaches (Max 2)
                             </label>
                             <textarea 
                                 className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none h-24 resize-none"
@@ -402,6 +512,13 @@ export default function App() {
     if (!user || !newTeamData.name) return; 
     
     const coachesList = newTeamData.coaches.split(',').map(c => c.trim()).filter(Boolean);
+    
+    // --- VALIDATION: MAX 2 COACHES ---
+    if (coachesList.length > 2) {
+      alert("You can only add up to 2 Assistant Coaches.");
+      return;
+    }
+
     const newTeam = createTeam(user.uid, newTeamData.name, newTeamData.abbr, coachesList);
     
     try {
@@ -451,8 +568,8 @@ export default function App() {
             <div className="flex items-center space-x-4">
                 <div className="flex items-center gap-3">
                     <div className="text-right hidden sm:block">
-                        <div className="text-sm font-bold text-white">{user.displayName || 'Coach'}</div>
-                        <div className="text-xs text-slate-500">{user.email}</div>
+                        <div className="text-sm font-bold text-white">{user.displayName || user.email}</div>
+                        <div className="text-xs text-slate-500">Coach</div>
                     </div>
                     {user.photoURL ? (
                         <img src={user.photoURL} alt="User" className="h-8 w-8 rounded-full border border-slate-600" />

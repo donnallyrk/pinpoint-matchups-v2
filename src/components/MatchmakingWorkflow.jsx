@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+// Removed unused deleteField import
 import { 
   Calendar, 
   Users, 
@@ -13,7 +14,8 @@ import {
   X,
   CheckCircle2,
   Clock,
-  Globe
+  Globe,
+  AlertOctagon
 } from 'lucide-react';
 import { Button } from '../utils';
 import { getPlayerValidationIssues } from '../models';
@@ -22,9 +24,9 @@ import { getPlayerValidationIssues } from '../models';
 import Step1_EventDetails from './Step1_EventDetails';
 import Step2_RosterManager from './Step2_RosterManager';
 import Step3_Parameters from './Step3_Parameters';
-import Step4_Matchmaking from './Step4_Matchmaking'; // IMPORTED
+import Step4_Matchmaking from './Step4_Matchmaking';
 
-// --- DATA VALIDATION MODAL ---
+// --- DATA VALIDATION MODAL (Existing) ---
 const ValidationGatekeeperModal = ({ invalidWrestlers, onCancel, onDropAndProceed }) => {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-in fade-in duration-200">
@@ -85,11 +87,72 @@ const ValidationGatekeeperModal = ({ invalidWrestlers, onCancel, onDropAndProcee
   );
 };
 
+// --- SAFEGUARD RESET MODAL (New) ---
+const SafeguardModal = ({ stepName, consequences, onCancel, onConfirm }) => {
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-yellow-500/50 rounded-xl w-full max-w-lg shadow-2xl">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-yellow-950/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-yellow-500/20 rounded-full">
+              <AlertOctagon className="text-yellow-500" size={24} />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-white">Confirm Changes</h3>
+              <p className="text-sm text-yellow-200/70">
+                Modifying {stepName} has downstream effects.
+              </p>
+            </div>
+          </div>
+          <button onClick={onCancel}><X className="text-slate-500 hover:text-white" /></button>
+        </div>
+
+        <div className="p-6">
+          <p className="text-slate-300 mb-4">
+            You are making changes to a previously completed step. To ensure data integrity, the following will be <strong>reset</strong>:
+          </p>
+          <ul className="space-y-2 mb-6">
+            {consequences.map((c, i) => (
+              <li key={i} className="flex items-center gap-2 text-sm text-red-300 bg-red-950/30 p-2 rounded border border-red-900/50">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                {c}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-slate-500">
+            You will need to re-run the matchmaking process after applying these changes.
+          </p>
+        </div>
+
+        <div className="p-6 border-t border-slate-800 bg-slate-900/50 flex justify-end gap-3 rounded-b-xl">
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm} className="bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-500">
+            Confirm & Reset
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- MAIN CONTROLLER ---
 const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
+  
+  // Safeguard State
+  const [safeguard, setSafeguard] = useState({
+    active: false,
+    pendingUpdate: null, // { id, data }
+    stepId: null,
+    consequences: []
+  });
+
+  // Revert Key: Used to force re-render of child components to undo optimistic updates
+  const [revertKey, setRevertKey] = useState(0);
 
   // Workflow Definition
   const steps = [
@@ -103,27 +166,110 @@ const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
 
   // --- AUTOMATIC STATUS UPDATER ---
   useEffect(() => {
-    let newStatus = 'not_started';
+    // Only auto-update status if we are NOT in the middle of a reset operation
+    // and if the event actually exists
+    if (!event) return;
 
-    if (currentStep === 1) {
-        newStatus = 'not_started';
-    } else if (currentStep > 1 && currentStep < 5) {
+    let newStatus = event.schedulingStatus || 'not_started';
+
+    // Simple logic: If we are past step 1, we are in progress.
+    // Real logic is handled by specific actions (e.g. publishing)
+    if (currentStep > 1 && newStatus === 'not_started') {
         newStatus = 'in_progress';
-    } else if (currentStep === 5) {
-        newStatus = 'complete'; 
-    } else if (currentStep === 6) {
-        if (event.schedulingStatus === 'published') {
-            newStatus = 'published';
-        } else {
-            newStatus = 'complete';
-        }
     }
 
     // Only update if different
     if (event.schedulingStatus !== newStatus) {
         onUpdateEvent(event.id, { schedulingStatus: newStatus });
     }
-  }, [currentStep, event.schedulingStatus, event.id]);
+  }, [currentStep, event?.schedulingStatus]);
+
+
+  // --- SAFEGUARDED UPDATE LOGIC ---
+  const handleSafeguardedUpdate = (stepId, eventId, data) => {
+    // Determine if we need to warn the user based on "Future" data existing
+    const hasMatchups = event.matchups && event.matchups.length > 0;
+    const hasSequencing = event.sequencing && event.sequencing.length > 0; // Future-proofing
+    
+    let consequences = [];
+    let resetData = {};
+
+    // LOGIC: Define what gets reset based on the step being edited
+    if (stepId === 2) { // Step 2: Participants
+       // Changes here invalidate Matchups (Step 4), Sequencing (Step 5), Publish (Step 6)
+       if (hasMatchups || hasSequencing) {
+           consequences.push("Step 4: Generated Matchups (Deleted)");
+           consequences.push("Step 5: Schedule Sequence (Deleted)");
+           consequences.push("Step 6: Published Status (Revoked)");
+           
+           // Use null instead of deleteField() to ensure local React state clears correctly
+           resetData = {
+               matchups: null,
+               sequencing: null,
+               schedulingStatus: 'in_progress'
+           };
+       }
+    } else if (stepId === 3) { // Step 3: Parameters
+       // Changes here invalidate Matchups (Step 4), Sequencing (Step 5), Publish (Step 6)
+       if (hasMatchups || hasSequencing) {
+           consequences.push("Step 4: Generated Matchups (Deleted)");
+           consequences.push("Step 5: Schedule Sequence (Deleted)");
+           consequences.push("Step 6: Published Status (Revoked)");
+
+           resetData = {
+               matchups: null,
+               sequencing: null,
+               schedulingStatus: 'in_progress'
+           };
+       }
+    } else if (stepId === 4) { // Step 4: Matchmaking
+       // Changes here invalidate Sequencing (Step 5), Publish (Step 6)
+       if (hasSequencing) {
+           consequences.push("Step 5: Schedule Sequence (Deleted)");
+           consequences.push("Step 6: Published Status (Revoked)");
+
+           resetData = {
+               sequencing: null,
+               schedulingStatus: 'in_progress'
+           };
+       }
+    } else if (stepId === 5) { // Step 5: Sequencing
+       // Changes here invalidate Publish (Step 6)
+       if (event.schedulingStatus === 'published') {
+           consequences.push("Step 6: Published Status (Revoked)");
+           resetData = {
+               schedulingStatus: 'complete'
+           };
+       }
+    }
+
+    // DECISION: Warning or Direct Update?
+    if (consequences.length > 0) {
+        setSafeguard({
+            active: true,
+            pendingUpdate: { id: eventId, data: { ...data, ...resetData } },
+            stepId,
+            consequences
+        });
+    } else {
+        // No conflict, proceed normally
+        onUpdateEvent(eventId, data);
+    }
+  };
+
+  const confirmSafeguard = () => {
+      if (safeguard.pendingUpdate) {
+          onUpdateEvent(safeguard.pendingUpdate.id, safeguard.pendingUpdate.data);
+      }
+      setSafeguard({ active: false, pendingUpdate: null, stepId: null, consequences: [] });
+  };
+
+  const cancelSafeguard = () => {
+      // 1. Clear Safeguard State
+      setSafeguard({ active: false, pendingUpdate: null, stepId: null, consequences: [] });
+      // 2. Force Re-render of current step to undo optimistic changes
+      setRevertKey(prev => prev + 1);
+  };
 
 
   // --- NAVIGATION LOGIC ---
@@ -219,7 +365,7 @@ const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
 
       const icons = {
           'not_started': Clock,
-          'in_progress': Clock, // Or a loader icon if preferred
+          'in_progress': Clock, 
           'issue': AlertTriangle,
           'complete': CheckCircle2,
           'published': Globe
@@ -237,12 +383,22 @@ const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
 
   return (
     <div className="flex flex-col h-full space-y-6 relative">
-      {/* --- VALIDATION MODAL --- */}
+      
+      {/* --- MODALS --- */}
       {showValidationModal && (
         <ValidationGatekeeperModal 
           invalidWrestlers={validationErrors}
           onCancel={() => setShowValidationModal(false)}
           onDropAndProceed={handleDropAndProceed}
+        />
+      )}
+
+      {safeguard.active && (
+        <SafeguardModal 
+          stepName={steps[safeguard.stepId - 1].label}
+          consequences={safeguard.consequences}
+          onCancel={cancelSafeguard}
+          onConfirm={confirmSafeguard}
         />
       )}
 
@@ -292,30 +448,43 @@ const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
       {/* --- STEP CONTENT --- */}
       <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col">
         <div className="flex-1 overflow-y-auto pr-2">
+            
+            {/* SAFEGUARD WRAPPER:
+                We wrap the onUpdate prop for every step to intercept changes.
+                We use key={revertKey} to force a re-mount when cancelling a safeguard.
+            */}
+
             {currentStep === 1 && (
-                <Step1_EventDetails event={event} onUpdate={onUpdateEvent} />
+                <Step1_EventDetails 
+                    key={`step1-${revertKey}`}
+                    event={event} 
+                    onUpdate={(id, data) => handleSafeguardedUpdate(1, id, data)} 
+                />
             )}
 
             {currentStep === 2 && (
                 <Step2_RosterManager 
+                    key={`step2-${revertKey}`}
                     event={event} 
                     masterRoster={roster} 
                     hostName={hostName}
-                    onUpdateEvent={onUpdateEvent} 
+                    onUpdateEvent={(id, data) => handleSafeguardedUpdate(2, id, data)} 
                 />
             )}
 
             {currentStep === 3 && (
                 <Step3_Parameters 
+                    key={`step3-${revertKey}`}
                     event={event} 
-                    onUpdate={onUpdateEvent}
+                    onUpdate={(id, data) => handleSafeguardedUpdate(3, id, data)}
                 />
             )}
 
             {currentStep === 4 && (
                 <Step4_Matchmaking
+                    key={`step4-${revertKey}`}
                     event={event} 
-                    onUpdate={onUpdateEvent}
+                    onUpdate={(id, data) => handleSafeguardedUpdate(4, id, data)}
                 />
             )}
 
