@@ -17,8 +17,8 @@ import {
   CheckCircle,
   XCircle,
   Star,
-  CalendarClock,
-  UserPlus
+  UserPlus,
+  Check
 } from 'lucide-react';
 import { Button, Card } from '../utils';
 import { getPlayerValidationIssues, createPlayer } from '../models';
@@ -26,37 +26,34 @@ import { getPlayerValidationIssues, createPlayer } from '../models';
 // --- HELPERS ---
 
 const calculateAge = (dob) => {
-    if (!dob) return '';
+    if (!dob) return 0;
     const birthDate = new Date(dob);
-    if (isNaN(birthDate)) return '';
+    if (isNaN(birthDate)) return 0;
     const today = new Date();
-    // Calculate precise age with decimal
     const diffTime = Math.abs(today - birthDate);
     const age = diffTime / (1000 * 60 * 60 * 24 * 365.25); 
-    return age.toFixed(1);
+    return parseFloat(age.toFixed(1));
 };
 
 // --- SCORING & QUALITY VISUALIZATION ---
 
-// Returns { quality: 0-100, label: string, color: string }
-const getMatchQuality = (penaltyScore) => {
-    // Adjusted Mapping to account for higher potential scores with Age added
-    // Formula: 100 - (score * 3.5) clamped at 0. Slightly more forgiving than *4.
-    const percentage = Math.max(0, Math.min(100, 100 - (penaltyScore * 3.5))); 
+const getMatchQuality = (score) => {
+    // Score is 0-50 based on the 5 categories (10pts each)
+    const percentage = Math.min(100, Math.max(0, (score / 50) * 100));
     
     let label = 'Poor';
     let color = 'text-red-500';
     let bg = 'bg-red-500';
 
-    if (percentage >= 90) {
+    if (score >= 45) {
         label = 'Perfect';
         color = 'text-emerald-400';
         bg = 'bg-emerald-500';
-    } else if (percentage >= 75) {
+    } else if (score >= 35) {
         label = 'Good';
         color = 'text-blue-400';
         bg = 'bg-blue-500';
-    } else if (percentage >= 50) {
+    } else if (score >= 25) {
         label = 'Fair';
         color = 'text-yellow-400';
         bg = 'bg-yellow-500';
@@ -83,86 +80,101 @@ const MatchQualityBadge = ({ score }) => {
     );
 };
 
-// Reusable logic for scoring a single match pair
+// --- CORE ALGORITHM: SCORING ---
 const calculateMatchMetrics = (w1, w2, matchRules) => {
     const { 
-        intraTeam, 
-        mixedGender, 
-        ageMode, 
-        ageTolerance, 
-        weightTolerance, 
-        ratingTolerance, 
-        lowRatingPairing 
+        intraTeam = 'no', 
+        mixedGender = 'no', 
+        ageMode = 'age', 
+        ageTolerance = 1.0, 
+        weightTolerance = 10, 
+        ratingTolerance = 1.0, 
+        lowRatingPairing = false 
     } = matchRules || {};
 
     let qualified = true;
     const reasons = [];
 
-    // Gender
-    if (mixedGender !== 'yes' && w1.gender !== w2.gender) {
-        qualified = false;
-        reasons.push('Gender');
-    }
+    // 1. ATTRIBUTES
+    const isSameTeam = w1.teamId === w2.teamId;
+    const isSameGender = w1.gender === w2.gender;
+    const ageDiff = Math.abs(w1.age - w2.age);
+    
+    const lighter = Math.min(w1.weight, w2.weight);
+    const heavier = Math.max(w1.weight, w2.weight);
+    const weightDiffPct = lighter > 0 ? ((heavier - lighter) / lighter) * 100 : 100;
+    
+    const ratingDiff = Math.abs(w1.rating - w2.rating);
 
-    // Team
-    if (intraTeam !== 'yes' && w1.teamId === w2.teamId) {
+    // 2. HARD CONSTRAINTS (Pass/Fail)
+    if (isSameTeam && intraTeam === 'no') {
         qualified = false;
         reasons.push('Same Team');
     }
-
-    // Rating
-    if (lowRatingPairing && (w1.rating === 0 || w2.rating === 0)) {
-        if (w1.rating !== 0 || w2.rating !== 0) {
-            qualified = false;
-            reasons.push('Beginner Shield');
-        }
-    }
-    const ratingDiff = Math.abs(w1.rating - w2.rating);
-    if (ratingDiff > (ratingTolerance || 1.0)) {
+    if (!isSameGender && mixedGender === 'no') {
         qualified = false;
-        reasons.push(`Rating Diff (${ratingDiff})`);
+        reasons.push('Gender');
     }
-
-    // Weight
-    const heavier = Math.max(w1.weight, w2.weight);
-    const lighter = Math.min(w1.weight, w2.weight);
-    const weightDiffPct = ((heavier - lighter) / lighter) * 100;
-    if (weightDiffPct > (weightTolerance || 10)) {
+    if (weightDiffPct > weightTolerance) {
         qualified = false;
-        reasons.push(`Weight Diff (${weightDiffPct.toFixed(1)}%)`);
+        reasons.push(`Weight (${weightDiffPct.toFixed(1)}%)`);
     }
-
-    // Age Calculation
-    let ageDiff = 0;
-    if (w1.age !== '' && w2.age !== '') {
-        ageDiff = Math.abs(parseFloat(w1.age) - parseFloat(w2.age));
-    }
-
-    // Age Constraints
     if (ageMode === 'division') {
         if (w1.division !== w2.division) {
             qualified = false;
             reasons.push('Division');
         }
     } else {
-        if (ageDiff > (ageTolerance || 1.0)) {
+        if (ageDiff > ageTolerance) {
             qualified = false;
             reasons.push(`Age Gap (${ageDiff.toFixed(1)})`);
         }
     }
+    if (lowRatingPairing) {
+        if ((w1.rating === 0 || w2.rating === 0) && (w1.rating !== w2.rating)) {
+            qualified = false;
+            reasons.push('Beginner Shield');
+        }
+    }
+    if (ratingDiff > ratingTolerance) {
+        qualified = false;
+        reasons.push(`Rating Diff (${ratingDiff})`);
+    }
 
-    // --- SCORING FORMULA ---
-    // Weight Diff % + (Rating Diff * 5) + (Age Diff * 3)
-    const score = weightDiffPct + (ratingDiff * 5) + (ageDiff * 3);
+    // 3. SCORING (Weighted Physics Model)
+    let teamVal = 0;
+    if (!isSameTeam) teamVal = 10;
+    else if (intraTeam === 'yes') teamVal = 7;
+    else if (intraTeam === 'if_necessary') teamVal = 3;
 
-    return { score, qualified, weightDiffPct, ratingDiff, ageDiff, reasons };
+    let genderVal = 0;
+    if (isSameGender) genderVal = 10;
+    else if (mixedGender === 'yes') genderVal = 7;
+    else if (mixedGender === 'if_necessary') genderVal = 3;
+
+    let ageVal = 10 - (ageDiff * 5);
+    let weightVal = 10 - weightDiffPct;
+    let skillVal = 10 - (ratingDiff * 3.3);
+
+    const rawScore = teamVal + genderVal + ageVal + weightVal + skillVal;
+    const totalScore = Math.max(0, rawScore);
+
+    return { 
+        score: totalScore, 
+        qualified, 
+        weightDiffPct, 
+        ratingDiff, 
+        ageDiff, 
+        reasons 
+    };
 };
 
-// --- MATCHMAKING ENGINE ---
+// --- CORE ALGORITHM: SOLVER (Hardened + Recovery) ---
 const runMatchmaking = (event) => {
     const { participatingTeams, matchRules, eventParameters } = event;
-    const { maxMatches } = eventParameters || { maxMatches: 3 };
+    const maxMatches = eventParameters?.maxMatches || 3;
 
+    // 1. Flatten Roster
     let allWrestlers = [];
     participatingTeams.forEach(t => {
         if(t.roster) {
@@ -172,77 +184,189 @@ const runMatchmaking = (event) => {
                     ...w, 
                     teamId: t.id, 
                     teamName: t.name, 
-                    teamAbbr: t.abbr,
+                    teamAbbr: t.abbr || t.name.substring(0,3).toUpperCase(),
                     age: calculateAge(w.dob)
                 });
             });
         }
     });
 
-    const candidates = [];
-    const potentialMatchCounts = {}; 
-    allWrestlers.forEach(w => potentialMatchCounts[w.id] = 0);
+    // 2. Pre-Calculate Edges
+    let potentialMatches = [];
+    const wrestlerOptions = {}; 
+    const wrestlerPotentialCount = {}; // Static count for stats
+    allWrestlers.forEach(w => {
+        wrestlerOptions[w.id] = new Set();
+        wrestlerPotentialCount[w.id] = 0;
+    });
 
     for (let i = 0; i < allWrestlers.length; i++) {
         for (let j = i + 1; j < allWrestlers.length; j++) {
             const w1 = allWrestlers[i];
             const w2 = allWrestlers[j];
-            
             const metrics = calculateMatchMetrics(w1, w2, matchRules);
 
             if (metrics.qualified) {
-                candidates.push({
-                    id: `${w1.id}-${w2.id}`,
-                    w1,
-                    w2,
-                    qualityScore: metrics.score,
-                    weightDiffPct: metrics.weightDiffPct,
-                    ratingDiff: metrics.ratingDiff,
-                    ageDiff: metrics.ageDiff // Store for stats
+                const matchId = `${w1.id}::${w2.id}`;
+                potentialMatches.push({
+                    id: matchId,
+                    w1Id: w1.id,
+                    w2Id: w2.id,
+                    ...metrics
                 });
-                potentialMatchCounts[w1.id]++;
-                potentialMatchCounts[w2.id]++;
+                wrestlerOptions[w1.id].add(matchId);
+                wrestlerOptions[w2.id].add(matchId);
+                wrestlerPotentialCount[w1.id]++;
+                wrestlerPotentialCount[w2.id]++;
             }
         }
     }
 
-    candidates.forEach(c => {
-        const w1Opts = potentialMatchCounts[c.w1.id];
-        const w2Opts = potentialMatchCounts[c.w2.id];
-        c.scarcityScore = Math.min(w1Opts, w2Opts);
+    const selectedMatches = [];
+    const matchesPerWrestler = {};
+    allWrestlers.forEach(w => matchesPerWrestler[w.id] = 0);
 
-        let priorityBonus = 0;
-        if (c.scarcityScore <= 1) priorityBonus = -2000;
-        else if (c.scarcityScore <= 2) priorityBonus = -1000;
-        else if (c.scarcityScore <= 3) priorityBonus = -500;
+    // 3. Main Loop (Scarcity-Aware Greedy)
+    let iterations = 0;
+    const MAX_ITERATIONS = potentialMatches.length + 500;
+
+    // Working copy for the loop
+    let availableMatches = [...potentialMatches];
+
+    while (availableMatches.length > 0 && iterations < MAX_ITERATIONS) {
+        iterations++;
+
+        // A. Score Edges
+        availableMatches.forEach(m => {
+            const opts1 = wrestlerOptions[m.w1Id].size;
+            const opts2 = wrestlerOptions[m.w2Id].size;
+            m.scarcityScore = opts1 + opts2;
+            
+            let priority = 0;
+            if (opts1 === 1 || opts2 === 1) priority = 1000;
+            else if (opts1 <= 2 || opts2 <= 2) priority = 500;
+            
+            m.selectionWeight = m.score + priority;
+        });
+
+        // B. Pick Best
+        availableMatches.sort((a, b) => b.selectionWeight - a.selectionWeight);
+        const bestMatch = availableMatches[0];
+
+        // C. Commit
+        const w1Id = bestMatch.w1Id;
+        const w2Id = bestMatch.w2Id;
+
+        if (matchesPerWrestler[w1Id] < maxMatches && matchesPerWrestler[w2Id] < maxMatches) {
+            const w1 = allWrestlers.find(w => w.id === w1Id);
+            const w2 = allWrestlers.find(w => w.id === w2Id);
+            
+            selectedMatches.push({ ...bestMatch, w1, w2 });
+            matchesPerWrestler[w1Id]++;
+            matchesPerWrestler[w2Id]++;
+        }
+
+        // D. Remove from pool
+        availableMatches = availableMatches.filter(m => m.id !== bestMatch.id);
         
-        c.finalSortScore = c.qualityScore + priorityBonus;
-    });
+        // E. Cleanup
+        const maxedWrestlers = new Set();
+        if (matchesPerWrestler[w1Id] >= maxMatches) maxedWrestlers.add(w1Id);
+        if (matchesPerWrestler[w2Id] >= maxMatches) maxedWrestlers.add(w2Id);
 
-    candidates.sort((a, b) => a.finalSortScore - b.finalSortScore);
-
-    const matches = [];
-    const matchCounts = {}; 
-    allWrestlers.forEach(w => matchCounts[w.id] = 0);
-
-    for (const match of candidates) {
-        const c1 = matchCounts[match.w1.id];
-        const c2 = matchCounts[match.w2.id];
-
-        if (c1 < maxMatches && c2 < maxMatches) {
-            matches.push(match);
-            matchCounts[match.w1.id]++;
-            matchCounts[match.w2.id]++;
+        if (maxedWrestlers.size > 0) {
+            availableMatches = availableMatches.filter(m => {
+                const isInvalid = maxedWrestlers.has(m.w1Id) || maxedWrestlers.has(m.w2Id);
+                if (isInvalid) {
+                    if (maxedWrestlers.has(m.w1Id)) wrestlerOptions[m.w2Id].delete(m.id);
+                    if (maxedWrestlers.has(m.w2Id)) wrestlerOptions[m.w1Id].delete(m.id);
+                }
+                return !isInvalid;
+            });
+        } else {
+            wrestlerOptions[w1Id].delete(bestMatch.id);
+            wrestlerOptions[w2Id].delete(bestMatch.id);
         }
     }
 
+    // 4. ORPHAN RECOVERY (Guaranteed Participation Logic)
+    const orphans = allWrestlers.filter(w => matchesPerWrestler[w.id] === 0 && wrestlerPotentialCount[w.id] > 0);
+
+    orphans.forEach(orphan => {
+        // Find best possible match for this orphan from original pool
+        // We re-scan because 'availableMatches' is depleted/filtered
+        let bestRecoveryMatch = null;
+        let bestRecoveryScore = -1;
+
+        for (let i = 0; i < allWrestlers.length; i++) {
+            const opponent = allWrestlers[i];
+            if (opponent.id === orphan.id) continue;
+
+            const metrics = calculateMatchMetrics(orphan, opponent, matchRules);
+            if (metrics.qualified) {
+                if (metrics.score > bestRecoveryScore) {
+                    bestRecoveryScore = metrics.score;
+                    bestRecoveryMatch = { 
+                        id: `${orphan.id}::${opponent.id}::RECOVERY`,
+                        orphan, opponent, metrics, 
+                        w1: orphan, w2: opponent, ...metrics 
+                    };
+                }
+            }
+        }
+
+        if (bestRecoveryMatch) {
+            const { opponent } = bestRecoveryMatch;
+            const oppId = opponent.id;
+            
+            // CASE A: Opponent has space (Rare, but possible if they were stranded too)
+            if (matchesPerWrestler[oppId] < maxMatches) {
+                 selectedMatches.push(bestRecoveryMatch);
+                 matchesPerWrestler[orphan.id]++;
+                 matchesPerWrestler[oppId]++;
+            } 
+            // CASE B: Opponent is full. Try to SWAP.
+            else {
+                // Look for a match where the opponent is wrestling someone who has matches to spare (>1)
+                const swapCandidateIndex = selectedMatches.findIndex(m => {
+                    const isOpp = (m.w1.id === oppId || m.w2.id === oppId);
+                    if (!isOpp) return false;
+                    const otherPersonId = m.w1.id === oppId ? m.w2.id : m.w1.id;
+                    return matchesPerWrestler[otherPersonId] > 1; // They can afford to lose one
+                });
+
+                if (swapCandidateIndex !== -1) {
+                    // SWAP: Drop the old match, add the orphan match
+                    const matchToRemove = selectedMatches[swapCandidateIndex];
+                    const otherPersonId = matchToRemove.w1.id === oppId ? matchToRemove.w2.id : matchToRemove.w1.id;
+                    
+                    selectedMatches.splice(swapCandidateIndex, 1); // Remove
+                    matchesPerWrestler[otherPersonId]--; // Decrement innocent bystander
+                    // Opponent count stays same (-1 + 1)
+                    
+                    selectedMatches.push(bestRecoveryMatch); // Add
+                    matchesPerWrestler[orphan.id]++;
+                } 
+                // CASE C: OVERBOOK (No swap possible)
+                else {
+                    // Everyone involved is at risk. We must overbook the opponent.
+                    // Flagging handled by UI based on count > max
+                    selectedMatches.push(bestRecoveryMatch);
+                    matchesPerWrestler[orphan.id]++;
+                    matchesPerWrestler[oppId]++; 
+                }
+            }
+        }
+    });
+
+    // 5. Final Stats
     const wrestlerStats = allWrestlers.map(w => ({
         ...w,
-        matchCount: matchCounts[w.id] || 0,
-        potentialMatches: potentialMatchCounts[w.id] || 0
+        matchCount: matchesPerWrestler[w.id] || 0,
+        potentialMatches: wrestlerPotentialCount[w.id] || 0
     }));
 
-    return { matches, wrestlerStats, totalWrestlers: allWrestlers.length };
+    return { matches: selectedMatches, wrestlerStats, totalWrestlers: allWrestlers.length };
 };
 
 // --- SUB-COMPONENTS ---
@@ -274,8 +398,16 @@ const WrestlerHeader = ({ wrestler }) => (
     </div>
 );
 
-const ViewMatchesModal = ({ wrestler, matches, onClose, onRemoveMatch }) => {
+const ViewMatchesModal = ({ wrestler, matches, wrestlerStats, onClose, onRemoveMatch }) => {
     const [sortConfig, setSortConfig] = useState({ key: 'lastName', direction: 'asc' });
+
+    const statsMap = useMemo(() => {
+        const map = new Map();
+        if (wrestlerStats) {
+            wrestlerStats.forEach(w => map.set(w.id, w));
+        }
+        return map;
+    }, [wrestlerStats]);
 
     const sortedMatches = useMemo(() => {
         const list = matches.filter(m => m.w1.id === wrestler.id || m.w2.id === wrestler.id);
@@ -286,8 +418,11 @@ const ViewMatchesModal = ({ wrestler, matches, onClose, onRemoveMatch }) => {
             
             let valA, valB;
             if (sortConfig.key === 'score') {
-                valA = a.qualityScore;
-                valB = b.qualityScore;
+                valA = a.score; 
+                valB = b.score;
+            } else if (sortConfig.key === 'oppMatchCount') {
+                valA = statsMap.get(wA.id)?.matchCount || 0;
+                valB = statsMap.get(wB.id)?.matchCount || 0;
             } else {
                 valA = wA[sortConfig.key];
                 valB = wB[sortConfig.key];
@@ -305,7 +440,7 @@ const ViewMatchesModal = ({ wrestler, matches, onClose, onRemoveMatch }) => {
                 : String(valB).localeCompare(String(valA));
         });
         return list;
-    }, [matches, wrestler, sortConfig]);
+    }, [matches, wrestler, sortConfig, statsMap]);
 
     const handleSort = (key) => {
         setSortConfig(prev => ({
@@ -339,16 +474,16 @@ const ViewMatchesModal = ({ wrestler, matches, onClose, onRemoveMatch }) => {
                                         { k: 'age', l: 'Age' },
                                         { k: 'weight', l: 'Weight' },
                                         { k: 'rating', l: 'Rating' },
-                                        { k: 'gender', l: 'Gender' },
-                                        { k: 'score', l: 'Match Quality' }, // Renamed Header
+                                        { k: 'oppMatchCount', l: 'Matches', w: 'text-center' },
+                                        { k: 'score', l: 'Match Quality' },
                                         { k: 'actions', l: 'Action' }
                                     ].map(col => (
                                         <th 
                                             key={col.k} 
-                                            className={`px-4 py-3 cursor-pointer hover:text-white hover:bg-slate-700 ${col.k === 'actions' ? 'text-right' : ''}`}
+                                            className={`px-4 py-3 cursor-pointer hover:text-white hover:bg-slate-700 ${col.w || ''} ${col.k === 'actions' ? 'text-right' : ''}`}
                                             onClick={() => col.k !== 'actions' && handleSort(col.k)}
                                         >
-                                            <div className={`flex items-center gap-1 ${col.k === 'actions' ? 'justify-end' : ''}`}>
+                                            <div className={`flex items-center gap-1 ${col.k === 'actions' ? 'justify-end' : col.k === 'oppMatchCount' ? 'justify-center' : ''}`}>
                                                 {col.l}
                                                 {col.k !== 'actions' && <ArrowUpDown size={10} className={`opacity-50 ${sortConfig.key === col.k ? 'text-blue-400 opacity-100' : ''}`}/>}
                                             </div>
@@ -359,6 +494,8 @@ const ViewMatchesModal = ({ wrestler, matches, onClose, onRemoveMatch }) => {
                             <tbody className="divide-y divide-slate-800">
                                 {sortedMatches.map(m => {
                                     const opp = m.w1.id === wrestler.id ? m.w2 : m.w1;
+                                    const oppStats = statsMap.get(opp.id);
+                                    
                                     return (
                                         <tr key={m.id} className="hover:bg-slate-800/50">
                                             <td className="px-4 py-3 font-bold text-white">{opp.lastName}, {opp.firstName}</td>
@@ -366,9 +503,16 @@ const ViewMatchesModal = ({ wrestler, matches, onClose, onRemoveMatch }) => {
                                             <td className="px-4 py-3 font-mono">{opp.age}</td>
                                             <td className="px-4 py-3 font-mono">{opp.weight}</td>
                                             <td className="px-4 py-3 font-mono">{opp.rating}</td>
-                                            <td className="px-4 py-3">{opp.gender}</td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
+                                                    !oppStats || oppStats.matchCount === 0 ? 'bg-red-900/50 text-red-400' :
+                                                    'bg-slate-800 text-slate-300'
+                                                }`}>
+                                                    {oppStats ? oppStats.matchCount : '-'}
+                                                </span>
+                                            </td>
                                             <td className="px-4 py-3">
-                                                <MatchQualityBadge score={m.qualityScore} />
+                                                <MatchQualityBadge score={m.score} />
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <Button 
@@ -397,6 +541,8 @@ const ViewMatchesModal = ({ wrestler, matches, onClose, onRemoveMatch }) => {
 const AddMatchModal = ({ wrestler, allWrestlers, currentMatches, matchRules, onClose, onAddMatch }) => {
     const [sortConfig, setSortConfig] = useState({ key: 'score', direction: 'asc' });
     const [filter, setFilter] = useState('');
+    const [lastAddedId, setLastAddedId] = useState(null); // Feedback state
+    const [isAdding, setIsAdding] = useState(false); // DEBOUNCE FLAG
 
     const matchCounts = useMemo(() => {
         const counts = {};
@@ -408,9 +554,19 @@ const AddMatchModal = ({ wrestler, allWrestlers, currentMatches, matchRules, onC
         return counts;
     }, [allWrestlers, currentMatches]);
 
+    // NEW: Identify existing opponents
+    const existingOpponents = useMemo(() => {
+        const ids = new Set();
+        currentMatches.forEach(m => {
+            if (m.w1.id === wrestler.id) ids.add(m.w2.id);
+            if (m.w2.id === wrestler.id) ids.add(m.w1.id);
+        });
+        return ids;
+    }, [currentMatches, wrestler]);
+
     const candidates = useMemo(() => {
         return allWrestlers
-            .filter(w => w.id !== wrestler.id)
+            .filter(w => w.id !== wrestler.id && !existingOpponents.has(w.id))
             .map(opp => {
                 const metrics = calculateMatchMetrics(wrestler, opp, matchRules);
                 return {
@@ -419,7 +575,7 @@ const AddMatchModal = ({ wrestler, allWrestlers, currentMatches, matchRules, onC
                     currentMatchCount: matchCounts[opp.id] || 0
                 };
             });
-    }, [allWrestlers, wrestler, matchRules, matchCounts]);
+    }, [allWrestlers, wrestler, matchRules, matchCounts, existingOpponents]);
 
     const filteredAndSortedCandidates = useMemo(() => {
         let list = candidates.filter(c => 
@@ -456,6 +612,19 @@ const AddMatchModal = ({ wrestler, allWrestlers, currentMatches, matchRules, onC
         }));
     };
 
+    const handleLocalAdd = (opp) => {
+        if (isAdding) return; // PREVENT DOUBLE CLICKS
+        setIsAdding(true);
+        
+        onAddMatch(wrestler, opp, opp.score);
+        setLastAddedId(opp.id);
+        
+        setTimeout(() => {
+            setLastAddedId(null);
+            setIsAdding(false); // RE-ENABLE
+        }, 1500); 
+    };
+
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
             <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
@@ -467,6 +636,12 @@ const AddMatchModal = ({ wrestler, allWrestlers, currentMatches, matchRules, onC
                 </div>
 
                 <WrestlerHeader wrestler={wrestler} />
+
+                {lastAddedId && (
+                    <div className="bg-green-900/30 border-b border-green-900/50 p-2 text-center text-green-400 text-xs font-bold animate-in fade-in">
+                        Match Added Successfully! You can add another.
+                    </div>
+                )}
 
                 <div className="p-3 border-b border-slate-700 bg-slate-900/50">
                     <div className="relative">
@@ -535,13 +710,20 @@ const AddMatchModal = ({ wrestler, allWrestlers, currentMatches, matchRules, onC
                                         <MatchQualityBadge score={opp.score} />
                                     </td>
                                     <td className="px-4 py-3 text-right">
-                                        <Button 
-                                            variant="ghost" 
-                                            onClick={() => onAddMatch(wrestler, opp, opp.score)}
-                                            className="text-green-400 hover:bg-green-900/30 h-8 px-3 border border-green-900/50"
-                                        >
-                                            <Plus size={16} className="mr-1" /> Add
-                                        </Button>
+                                        {lastAddedId === opp.id ? (
+                                            <span className="text-green-400 text-xs font-bold flex items-center justify-end gap-1">
+                                                <Check size={14} /> Added
+                                            </span>
+                                        ) : (
+                                            <Button 
+                                                variant="ghost" 
+                                                onClick={() => handleLocalAdd(opp)}
+                                                disabled={isAdding} // DISABLE BUTTON
+                                                className="text-green-400 hover:bg-green-900/30 h-8 px-3 border border-green-900/50 disabled:opacity-50 disabled:cursor-wait"
+                                            >
+                                                <Plus size={16} className="mr-1" /> Add
+                                            </Button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -556,7 +738,7 @@ const AddMatchModal = ({ wrestler, allWrestlers, currentMatches, matchRules, onC
     );
 };
 
-// --- ADD WRESTLER MODAL ---
+// --- ADD WRESTLER MODAL (RESTORED) ---
 const AddWrestlerModal = ({ teams, onClose, onSave }) => {
     const [form, setForm] = useState({
         teamId: teams.length > 0 ? teams[0].id : '',
@@ -718,6 +900,7 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
           w1: w1,
           w2: w2,
           qualityScore: score,
+          score: score, // Store both for compatibility
           weightDiffPct: 0, 
           ratingDiff: Math.abs(w1.rating - w2.rating)
       };
@@ -740,7 +923,7 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
       setResults(newResults);
       onUpdate(event.id, { matchups: newMatches });
       
-      setShowAddModal(false);
+      // Removed setShowAddModal(false) to keep modal open for bulk addition
   };
 
   const handleAddWrestler = (data) => {
@@ -787,21 +970,36 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
 
   const summaryStats = useMemo(() => {
       if (!results || !results.wrestlerStats) return [];
+      
+      const maxMatches = event.eventParameters?.maxMatches || 3;
+      // DYNAMIC RANGE: Create array [0, 1, ..., maxMatches]
+      const range = Array.from({ length: maxMatches + 1 }, (_, i) => i);
+
       const teamMap = {}; 
       results.wrestlerStats.forEach(w => {
           if (!teamMap[w.teamName]) {
+              // Initialize dynamic counts object
+              const countsObj = {};
+              range.forEach(r => countsObj[r] = 0);
+              countsObj['over'] = 0; // For > maxMatches
+
               teamMap[w.teamName] = { 
                   id: w.teamId,
                   name: w.teamName, 
                   abbr: w.teamAbbr, 
-                  counts: { 0:0, 1:0, 2:0, 3:0 } 
+                  counts: countsObj,
+                  range // Store range for rendering
               };
           }
-          const count = Math.min(w.matchCount, 3); 
-          teamMap[w.teamName].counts[count]++;
+          
+          if (w.matchCount > maxMatches) {
+              teamMap[w.teamName].counts['over']++;
+          } else {
+              teamMap[w.teamName].counts[w.matchCount]++;
+          }
       });
       return Object.values(teamMap);
-  }, [results]);
+  }, [results, event.eventParameters]);
 
   const filteredWrestlers = useMemo(() => {
       if (!results || !results.wrestlerStats) return [];
@@ -845,6 +1043,7 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
           <ViewMatchesModal 
               wrestler={selectedWrestler} 
               matches={results.matches} 
+              wrestlerStats={results.wrestlerStats} // NEW PROP
               onClose={() => setShowViewModal(false)}
               onRemoveMatch={handleRemoveMatch}
           />
@@ -933,19 +1132,31 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
                           {summaryStats.map((stat, idx) => {
                               const total = Object.values(stat.counts).reduce((a,b) => a+b, 0);
                               const isSelected = teamFilter === stat.id;
+                              
+                              // Calculate columns for grid based on dynamic range
+                              const cols = stat.range.length + 1; // +1 for "over"
+
                               return (
-                                  <div key={idx} onClick={() => setTeamFilter(isSelected ? 'All' : stat.id)} className={`rounded-lg p-3 w-48 border transition-all cursor-pointer ${isSelected ? 'bg-blue-900/20 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-800 border-slate-700 hover:border-slate-500 hover:bg-slate-800/80'}`}>
+                                  <div key={idx} onClick={() => setTeamFilter(isSelected ? 'All' : stat.id)} className={`rounded-lg p-3 w-auto border transition-all cursor-pointer ${isSelected ? 'bg-blue-900/20 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-800 border-slate-700 hover:border-slate-500 hover:bg-slate-800/80'}`}>
                                       <div className="flex justify-between items-center mb-3">
-                                          <span className="font-bold text-white text-sm truncate" title={stat.name}>{stat.abbr}</span>
-                                          <span className="text-xs text-slate-500">{total} Wrestlers</span>
+                                          <span className="font-bold text-white text-sm truncate mr-4" title={stat.name}>{stat.abbr}</span>
+                                          <span className="text-xs text-slate-500 whitespace-nowrap">{total} Wrestlers</span>
                                       </div>
-                                      <div className="grid grid-cols-4 gap-1 text-center">
-                                          {[0,1,2,3].map(n => (
+                                      <div 
+                                        className="grid gap-2 text-center"
+                                        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+                                      >
+                                          {stat.range.map(n => (
                                               <div key={n} className="flex flex-col">
                                                   <span className={`text-lg font-bold leading-none ${stat.counts[n] > 0 ? (n===0?'text-red-400':n===1?'text-yellow-400':n===2?'text-blue-400':'text-green-400') : 'text-slate-600'}`}>{stat.counts[n]}</span>
-                                                  <span className="text-[9px] text-slate-500 uppercase">{n}{n===3?'+':''}</span>
+                                                  <span className="text-[9px] text-slate-500 uppercase">{n}</span>
                                               </div>
                                           ))}
+                                          {/* Overflow Column */}
+                                          <div className="flex flex-col border-l border-slate-700 pl-2">
+                                               <span className={`text-lg font-bold leading-none ${stat.counts['over'] > 0 ? 'text-purple-400' : 'text-slate-600'}`}>{stat.counts['over']}</span>
+                                               <span className="text-[9px] text-slate-500 uppercase">&gt;{stat.range.length-1}</span>
+                                          </div>
                                       </div>
                                   </div>
                               );
@@ -989,7 +1200,12 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
                                           <td className="px-4 py-2 font-mono text-slate-400">{w.rating}</td>
                                           <td className="px-4 py-2">{w.gender}</td>
                                           <td className="px-4 py-2 text-center">
-                                              <div className={`inline-flex items-center justify-center w-8 h-6 rounded font-bold text-xs ${w.matchCount === 0 ? 'bg-red-900/30 text-red-400 border border-red-900/50' : w.matchCount === 1 ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-900/50' : w.matchCount === 2 ? 'bg-blue-900/30 text-blue-400 border border-blue-900/50' : 'bg-green-900/30 text-green-400 border border-green-900/50'}`}>
+                                              <div className={`inline-flex items-center justify-center w-8 h-6 rounded font-bold text-xs ${
+                                                  w.matchCount === 0 ? 'bg-red-900/30 text-red-400 border border-red-900/50' : 
+                                                  w.matchCount < (event.eventParameters?.maxMatches || 3) ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-900/50' : 
+                                                  w.matchCount > (event.eventParameters?.maxMatches || 3) ? 'bg-purple-900/30 text-purple-400 border border-purple-900/50' :
+                                                  'bg-green-900/30 text-green-400 border border-green-900/50'
+                                              }`}>
                                                   {w.matchCount}
                                               </div>
                                           </td>
