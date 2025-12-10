@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { X, Plus, Users, Info, AlertCircle, Check, Mail } from 'lucide-react';
+import { X, Users, Info, AlertCircle, Mail, Loader } from 'lucide-react';
 import { Button } from '../utils';
+import { addDoc, collection } from 'firebase/firestore';
+import { db, appId } from '../firebase';
+import { createTeam, COLLECTIONS } from '../models';
 
-const CreateTeamModal = ({ onClose, onCreate }) => {
+const CreateTeamModal = ({ user, onClose }) => {
   const [name, setName] = useState('');
   const [abbr, setAbbr] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Coach Email State
   const [coachEmails, setCoachEmails] = useState([]);
@@ -50,9 +54,25 @@ const CreateTeamModal = ({ onClose, onCreate }) => {
     setCoachEmails(coachEmails.filter(e => e !== emailToRemove));
   };
 
-  const handleSubmit = () => {
-    if (!name || !abbr) return;
-    onCreate({ name, abbr, coaches: coachEmails });
+  const handleSubmit = async () => {
+    if (!name || !abbr || !user) return;
+    setIsSubmitting(true);
+
+    try {
+        // 1. Use the Factory to ensure data structure matches App.jsx expectations
+        const newTeamData = createTeam(user.uid, name, abbr, coachEmails);
+
+        // 2. Write to Firestore directly from here
+        await addDoc(collection(db, 'artifacts', appId, COLLECTIONS.TEAMS), newTeamData);
+        
+        // 3. Close (The App.jsx snapshot listener will auto-update the list)
+        onClose();
+    } catch (error) {
+        console.error("Error creating team:", error);
+        alert("Failed to create team. Please try again.");
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   return (
@@ -66,7 +86,7 @@ const CreateTeamModal = ({ onClose, onCreate }) => {
                     </h3>
                     <p className="text-sm text-slate-400">Set up a roster container for your organization.</p>
                 </div>
-                <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+                <button onClick={onClose} disabled={isSubmitting} className="text-slate-500 hover:text-white transition-colors">
                     <X size={20} />
                 </button>
             </div>
@@ -84,6 +104,7 @@ const CreateTeamModal = ({ onClose, onCreate }) => {
                             placeholder="e.g. Ridge High School"
                             value={name}
                             onChange={e => setName(e.target.value)}
+                            disabled={isSubmitting}
                         />
                     </div>
                     <div className="col-span-1">
@@ -94,6 +115,7 @@ const CreateTeamModal = ({ onClose, onCreate }) => {
                             maxLength={4}
                             value={abbr}
                             onChange={e => setAbbr(e.target.value.toUpperCase())}
+                            disabled={isSubmitting}
                         />
                     </div>
                 </div>
@@ -112,8 +134,8 @@ const CreateTeamModal = ({ onClose, onCreate }) => {
                         <div className="flex gap-2">
                             <Info size={16} className="text-blue-400 shrink-0 mt-0.5" />
                             <div className="text-xs text-blue-200/80 leading-relaxed">
-                                Adding a coach grants them <strong>full edit access</strong> to this team's roster. 
-                                They will receive an email invitation to collaborate. You can add as many coaches as needed.
+                                Adding a coach grants them <strong>full edit access</strong>. 
+                                They will receive an email invitation to collaborate.
                             </div>
                         </div>
                     </div>
@@ -125,13 +147,13 @@ const CreateTeamModal = ({ onClose, onCreate }) => {
                                 <div key={email} className="flex items-center gap-1 bg-slate-800 text-slate-200 px-2 py-1 rounded text-xs border border-slate-700 animate-in fade-in zoom-in duration-200">
                                     <Mail size={10} className="text-slate-500"/>
                                     {email}
-                                    <button onClick={() => removeEmail(email)} className="hover:text-white hover:bg-red-500/20 rounded p-0.5 transition-colors">
+                                    <button onClick={() => removeEmail(email)} type="button" className="hover:text-white hover:bg-red-500/20 rounded p-0.5 transition-colors">
                                         <X size={12} />
                                     </button>
                                 </div>
                             ))}
                             <input 
-                                className="bg-transparent border-none outline-none text-sm text-white flex-1 min-w-[150px] px-1 py-0.5"
+                                className="bg-transparent border-none outline-none text-sm text-white flex-1 min-w-[150px] px-1 py-0.5 disabled:opacity-50"
                                 placeholder={coachEmails.length === 0 ? "Type email and press Enter..." : "Add another..."}
                                 value={emailInput}
                                 onChange={e => {
@@ -139,7 +161,8 @@ const CreateTeamModal = ({ onClose, onCreate }) => {
                                     if(emailError) setEmailError(null);
                                 }}
                                 onKeyDown={handleKeyDown}
-                                onBlur={handleAddEmail} // Also add on blur
+                                onBlur={handleAddEmail} 
+                                disabled={isSubmitting}
                             />
                         </div>
                     </div>
@@ -154,13 +177,13 @@ const CreateTeamModal = ({ onClose, onCreate }) => {
 
             {/* Footer */}
             <div className="p-5 border-t border-slate-800 bg-slate-900/50 rounded-b-xl flex justify-end gap-3">
-                <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
                 <Button 
                     onClick={handleSubmit} 
-                    disabled={!name || !abbr}
-                    className="shadow-lg shadow-blue-900/20"
+                    disabled={!name || !abbr || isSubmitting}
+                    className="shadow-lg shadow-blue-900/20 w-32 justify-center"
                 >
-                    Create Team
+                    {isSubmitting ? <Loader className="animate-spin" size={18} /> : 'Create Team'}
                 </Button>
             </div>
         </div>

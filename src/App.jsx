@@ -28,17 +28,21 @@ import {
   Settings, 
   MapPin, 
   Mail,
-  Lock
+  Lock,
+  AlertTriangle 
 } from 'lucide-react';
 
 // --- IMPORTS ---
 import { auth, db, appId, googleProvider } from './firebase';
 import { Button, Card } from './utils';
-import { createTeam, createSchedule, COLLECTIONS } from './models';
-import TeamCard from './components/TeamCard';
+import { createSchedule, COLLECTIONS } from './models';
+import TeamCard from './components/TeamCard'; 
 import ScheduleList from './components/ScheduleList'; 
 import MatchmakingWorkflow from './components/MatchmakingWorkflow'; 
 import RosterEditor from './components/RosterEditor'; 
+import CreateTeamModal from './components/CreateTeamModal'; 
+import TeamList from './components/TeamList';
+import PageHeader from './components/PageHeader'; 
 
 // --- COMPONENT: LOGIN PAGE ---
 const LoginPage = () => {
@@ -296,6 +300,24 @@ const TeamDashboard = ({ team, user, onBack }) => {
       setCurrentSchedule(null);
   };
 
+  const handleDeleteTeam = async () => {
+      // Safeguard 1: Initial Warning
+      const step1 = confirm("Are you sure you want to delete this team? This action cannot be undone.");
+      if (!step1) return;
+
+      // Safeguard 2: Explicit Confirmation
+      const step2 = confirm(`Please confirm again. All roster data and schedules for "${team.metadata.name}" will be permanently deleted.`);
+      if (!step2) return;
+
+      try {
+          await deleteDoc(doc(db, 'artifacts', appId, COLLECTIONS.TEAMS, team.id));
+          onBack(); // Go back to team list
+      } catch (e) {
+          console.error("Error deleting team:", e);
+          alert("Failed to delete team. Please try again.");
+      }
+  };
+
   // --- RENDER: EVENT EDITOR ---
   if (currentSchedule) {
       return (
@@ -310,8 +332,6 @@ const TeamDashboard = ({ team, user, onBack }) => {
                         <span className="text-sm text-slate-500">Managed Event</span>
                     </div>
                   </div>
-                  
-                  {/* Status Dropdown REMOVED */}
               </div>
 
               {/* UNIFIED WORKFLOW RENDER */}
@@ -368,12 +388,17 @@ const TeamDashboard = ({ team, user, onBack }) => {
         </div>
       </div>
 
-      {/* Tab Content */}
-      <div className="flex-1 min-h-0">
+      {/* Tab Content - SCROLL FIX APPLIED HERE */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-1">
         {activeTab === 'profile' && (
-            <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 py-4">
+                <PageHeader 
+                    title="Team Settings" 
+                    description="Manage team identity, home location, and coaching staff."
+                />
+                
                 <Card className="p-6 space-y-6">
-                    <h3 className="text-xl font-bold text-white border-b border-slate-700 pb-4">Team Settings</h3>
+                    <h3 className="text-xl font-bold text-white border-b border-slate-700 pb-4">General Info</h3>
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -422,31 +447,59 @@ const TeamDashboard = ({ team, user, onBack }) => {
                         <Button onClick={handleSaveProfile}>Save Profile</Button>
                     </div>
                 </Card>
+
+                {/* DANGER ZONE - Separated and safeguarded */}
+                {team.roles.owner === user.uid && (
+                    <div className="mt-8 pt-8 border-t border-slate-800">
+                        <div className="bg-red-950/20 border border-red-900/50 rounded-xl p-6 flex items-start gap-4">
+                            <div className="p-3 bg-red-900/20 rounded-full shrink-0">
+                                <AlertTriangle className="text-red-500" size={24} />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-bold text-white mb-1">Danger Zone</h3>
+                                <p className="text-sm text-slate-400 mb-4">
+                                    Deleting a team is permanent. All rosters, schedules, and matchmaking history will be lost immediately.
+                                </p>
+                                <Button 
+                                    variant="danger" 
+                                    onClick={handleDeleteTeam}
+                                    className="w-full sm:w-auto"
+                                >
+                                    Delete Team
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* SPACER for bottom scrolling */}
+                <div className="h-8"></div>
             </div>
         )}
 
         {activeTab === 'schedules' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold text-white">Event Schedule</h3>
-                    <Button onClick={handleCreateSchedule} icon={Plus}>New Event</Button>
-                </div>
+            <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 py-4">
+                <PageHeader 
+                    title="Event Schedule" 
+                    description="Create and manage your team's match events."
+                />
                 
                 <ScheduleList 
                     schedules={schedules} 
                     onEdit={setCurrentSchedule}
                     onDelete={deleteSchedule}
+                    onCreate={handleCreateSchedule} // PASSING THE HANDLER
                 />
             </div>
         )}
 
         {activeTab === 'roster' && (
-            <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <Card className="flex-1 flex flex-col p-6 min-h-0">
-                    <div className="mb-6 pb-4 border-b border-slate-700 shrink-0">
-                        <h2 className="text-xl font-bold text-white">Master Team Roster</h2>
-                        <p className="text-slate-400 text-sm mt-1">Manage all wrestlers in your program.</p>
-                    </div>
+            <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 py-4">
+                <PageHeader 
+                    title="Master Roster" 
+                    description="Manage all athletes in your program."
+                />
+                
+                <Card className="flex-1 flex flex-col p-6 min-h-0 bg-slate-800/50">
                     <RosterEditor 
                         roster={roster} 
                         teamName={team.metadata.name} 
@@ -470,7 +523,6 @@ export default function App() {
   
   // Create Team Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newTeamData, setNewTeamData] = useState({ name: '', abbr: '', coaches: '' });
 
   // Auth Listener (Updated for Google Auth)
   useEffect(() => {
@@ -506,29 +558,6 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [user]);
-
-  const handleCreateTeam = async (e) => {
-    e.preventDefault();
-    if (!user || !newTeamData.name) return; 
-    
-    const coachesList = newTeamData.coaches.split(',').map(c => c.trim()).filter(Boolean);
-    
-    // --- VALIDATION: MAX 2 COACHES ---
-    if (coachesList.length > 2) {
-      alert("You can only add up to 2 Assistant Coaches.");
-      return;
-    }
-
-    const newTeam = createTeam(user.uid, newTeamData.name, newTeamData.abbr, coachesList);
-    
-    try {
-      await addDoc(collection(db, 'artifacts', appId, COLLECTIONS.TEAMS), newTeam);
-      setShowCreateModal(false);
-      setNewTeamData({ name: '', abbr: '', coaches: '' });
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   // Safe Sign Out
   const handleSignOut = async () => {
@@ -600,88 +629,21 @@ export default function App() {
         ) : (
           
         /* VIEW 2: USER HOME (Team Selector) */
-          <div className="space-y-8 animate-in fade-in duration-500 overflow-y-auto h-full">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-white tracking-tight">Your Teams</h1>
-                    <p className="text-slate-400 mt-1">Select a team to manage rosters and schedules.</p>
-                </div>
-                <Button onClick={() => setShowCreateModal(true)} icon={Plus}>Create Team</Button>
-            </div>
-
-            {userTeams.length === 0 ? (
-                <div className="text-center py-20 bg-slate-900/50 rounded-2xl border border-dashed border-slate-700">
-                    <div className="bg-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Users className="text-slate-500" size={32} />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-2">No teams found</h3>
-                    <p className="text-slate-500 max-w-sm mx-auto mb-6">
-                        You haven't created or joined any teams yet. Create a team to start generating matchups.
-                    </p>
-                    <Button onClick={() => setShowCreateModal(true)} variant="primary">Create Your First Team</Button>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {userTeams.map(team => (
-                        <TeamCard 
-                            key={team.id} 
-                            team={team} 
-                            isOwner={team.roles.owner === user.uid}
-                            onClick={() => setCurrentTeam(team)} 
-                        />
-                    ))}
-                </div>
-            )}
-          </div>
+          <TeamList 
+              teams={userTeams} 
+              user={user} 
+              onCreateClick={() => setShowCreateModal(true)} 
+              onTeamSelect={setCurrentTeam} 
+          />
         )}
       </main>
 
       {/* CREATE TEAM MODAL */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
-            <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
-                <div className="p-6 border-b border-slate-800 flex justify-between items-center">
-                    <h3 className="text-xl font-bold text-white">Create New Team</h3>
-                    <button onClick={() => setShowCreateModal(false)} className="text-slate-500 hover:text-white"><X size={24}/></button>
-                </div>
-                <form onSubmit={handleCreateTeam} className="p-6 space-y-4">
-                    <div>
-                        <label className="block text-xs font-medium text-slate-400 mb-1">Team Name</label>
-                        <input 
-                            required 
-                            autoFocus
-                            className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" 
-                            placeholder="e.g. Westside Warriors"
-                            value={newTeamData.name} 
-                            onChange={e => setNewTeamData({...newTeamData, name: e.target.value})} 
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-slate-400 mb-1">Abbreviation (Opt)</label>
-                        <input 
-                            className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none uppercase" 
-                            placeholder="e.g. WSW"
-                            maxLength={4}
-                            value={newTeamData.abbr} 
-                            onChange={e => setNewTeamData({...newTeamData, abbr: e.target.value})} 
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-slate-400 mb-1">Coach Emails</label>
-                        <textarea 
-                            className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none h-20 resize-none" 
-                            placeholder="coach1@example.com, coach2@example.com"
-                            value={newTeamData.coaches} 
-                            onChange={e => setNewTeamData({...newTeamData, coaches: e.target.value})} 
-                        />
-                    </div>
-                    <div className="pt-2 flex justify-end gap-3">
-                        <Button variant="ghost" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-                        <Button type="submit">Create Team</Button>
-                    </div>
-                </form>
-            </div>
-        </div>
+        <CreateTeamModal 
+            user={user} 
+            onClose={() => setShowCreateModal(false)} 
+        />
       )}
     </div>
   );

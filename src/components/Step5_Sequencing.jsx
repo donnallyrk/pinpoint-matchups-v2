@@ -17,6 +17,12 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { Button } from '../utils';
+import PageHeader from './PageHeader';
+
+// ... (KEEP ALL HELPERS AND ALGORITHMS UNCHANGED) ...
+// NOTE: I am omitting the helper functions here for brevity in the output block, 
+// but they MUST remain in the file. I will assume they are present or pasted back in.
+// FOR THE FULL FILE REWRITE, I WILL INCLUDE THEM TO BE SAFE.
 
 // --- CONFIGURATION HELPER ---
 const getSequencingConfig = (event) => {
@@ -510,206 +516,206 @@ const Step5_Sequencing = ({ event, onUpdate }) => {
     }, [schedule, config.matsAvailable]);
 
     return (
-        <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
+        <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 h-full flex flex-col">
             
             {showIssuesModal && (
                 <RestIssuesModal violations={violations} allMatches={schedule} onClose={() => setShowIssuesModal(false)} />
             )}
 
-            {/* TOP BAR */}
-            <div className="flex justify-between items-end bg-slate-900 border border-slate-700 rounded-xl p-4 shrink-0 shadow-lg">
-                <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <ListOrdered className="text-blue-500"/> Schedule Sequencer
-                    </h2>
-                    <p className="text-slate-400 text-sm mt-1">
-                        Distribute bouts across mats and check rest gaps.
-                    </p>
-                </div>
-                <div className="flex items-center gap-3">
-                    {schedule ? (
-                        <Button variant="ghost" onClick={handleClear} className="text-red-400 hover:bg-red-950/30">Clear</Button>
-                    ) : (
-                        <Button onClick={handleGenerate} disabled={isGenerating} className="shadow-lg shadow-blue-900/20">
-                            {isGenerating ? 'Calculating...' : 'Generate Schedule'} <Play size={16} className="ml-2 fill-current"/>
-                        </Button>
-                    )}
-                    
-                    {schedule && (
-                        <Button onClick={handleGenerate} variant="secondary" className="border-slate-600">
-                            Re-Run <ArrowRightLeft size={16} className="ml-2"/>
-                        </Button>
-                    )}
-                </div>
-            </div>
-
-            {/* TOOLBAR */}
-            <div className="bg-slate-950/50 p-2 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-4">
-                
-                {/* LEFT: View Toggles & Filters */}
-                <div className="flex items-center gap-4">
-                    <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
-                        <button 
-                            onClick={() => setViewMode('by_mat')}
-                            className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-colors ${viewMode === 'by_mat' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
-                        >
-                            <LayoutGrid size={14}/> By Mat
-                        </button>
-                        <button 
-                            onClick={() => setViewMode('by_team')}
-                            className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-colors ${viewMode === 'by_team' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
-                        >
-                            <Users size={14}/> By Team
-                        </button>
+            {/* Standard Page Header */}
+            <PageHeader 
+                title="Schedule Sequencer" 
+                description="Distribute bouts across mats and check rest gaps."
+                actions={
+                    <div className="flex items-center gap-3">
+                        {schedule ? (
+                            <Button variant="ghost" onClick={handleClear} className="text-red-400 hover:bg-red-950/30">Clear</Button>
+                        ) : (
+                            <Button onClick={handleGenerate} disabled={isGenerating} className="shadow-lg shadow-blue-900/20">
+                                {isGenerating ? 'Calculating...' : 'Generate Schedule'} <Play size={16} className="ml-2 fill-current"/>
+                            </Button>
+                        )}
+                        
+                        {schedule && (
+                            <Button onClick={handleGenerate} variant="secondary" className="border-slate-600">
+                                Re-Run <ArrowRightLeft size={16} className="ml-2"/>
+                            </Button>
+                        )}
                     </div>
+                }
+            />
 
-                    {schedule && (
-                        <>
-                            {viewMode === 'by_mat' ? (
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 rounded-lg border border-slate-700">
-                                    <Filter size={14} className="text-slate-400" />
-                                    <select 
-                                        value={filterMat} 
-                                        onChange={(e) => setFilterMat(e.target.value)}
-                                        className="bg-transparent text-xs font-bold text-white outline-none"
-                                    >
-                                        <option value="All">All Mats</option>
-                                        {Array.from({length: config.matsAvailable}, (_, i) => i + 1).map(num => (
-                                            <option key={num} value={num}>Mat {num}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 rounded-lg border border-slate-700">
+            {/* Core Content Container */}
+            <div className="flex-1 bg-slate-800/50 border border-slate-700 rounded-xl p-6 min-h-0 flex flex-col">
+                
+                {/* TOOLBAR */}
+                <div className="bg-slate-900 p-3 rounded-lg border border-slate-700 flex flex-wrap items-center justify-between gap-4 mb-4 shrink-0">
+                    
+                    {/* LEFT: View Toggles & Filters */}
+                    <div className="flex items-center gap-4">
+                        <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700">
+                            <button 
+                                onClick={() => setViewMode('by_mat')}
+                                className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-colors ${viewMode === 'by_mat' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                            >
+                                <LayoutGrid size={14}/> By Mat
+                            </button>
+                            <button 
+                                onClick={() => setViewMode('by_team')}
+                                className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-colors ${viewMode === 'by_team' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                            >
+                                <Users size={14}/> By Team
+                            </button>
+                        </div>
+
+                        {schedule && (
+                            <>
+                                {viewMode === 'by_mat' ? (
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 rounded-lg border border-slate-700">
                                         <Filter size={14} className="text-slate-400" />
                                         <select 
-                                            value={filterTeam} 
-                                            onChange={(e) => setFilterTeam(e.target.value)}
-                                            className="bg-transparent text-xs font-bold text-white outline-none max-w-[150px]"
+                                            value={filterMat} 
+                                            onChange={(e) => setFilterMat(e.target.value)}
+                                            className="bg-transparent text-xs font-bold text-white outline-none"
                                         >
-                                            <option value="All">All Teams</option>
-                                            {teams.map(t => (<option key={t} value={t}>{t}</option>))}
+                                            <option value="All">All Mats</option>
+                                            {Array.from({length: config.matsAvailable}, (_, i) => i + 1).map(num => (
+                                                <option key={num} value={num}>Mat {num}</option>
+                                            ))}
                                         </select>
                                     </div>
-                                    <div className="relative">
-                                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Search wrestler..." 
-                                            value={wrestlerSearch}
-                                            onChange={(e) => setWrestlerSearch(e.target.value)}
-                                            className="bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white outline-none focus:border-blue-500 w-48"
-                                        />
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 rounded-lg border border-slate-700">
+                                            <Filter size={14} className="text-slate-400" />
+                                            <select 
+                                                value={filterTeam} 
+                                                onChange={(e) => setFilterTeam(e.target.value)}
+                                                className="bg-transparent text-xs font-bold text-white outline-none max-w-[150px]"
+                                            >
+                                                <option value="All">All Teams</option>
+                                                {teams.map(t => (<option key={t} value={t}>{t}</option>))}
+                                            </select>
+                                        </div>
+                                        <div className="relative">
+                                            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search wrestler..." 
+                                                value={wrestlerSearch}
+                                                onChange={(e) => setWrestlerSearch(e.target.value)}
+                                                className="bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white outline-none focus:border-blue-500 w-48"
+                                            />
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                        </>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    {/* RIGHT: Stats */}
+                    {schedule && (
+                        <div className="flex items-center gap-4">
+                            <div className="flex gap-1 items-center">
+                                {matStats.map((count, idx) => (
+                                    <div key={idx} className="flex flex-col items-center justify-center w-8 bg-slate-800 rounded border border-slate-700 py-1" title={`Mat ${idx + 1}: ${count} matches`}>
+                                        <span className="text-[8px] font-bold text-slate-500 uppercase">M{idx + 1}</span>
+                                        <span className={`text-[10px] font-bold ${count === 0 ? 'text-slate-600' : 'text-blue-200'}`}>{count}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="h-8 w-px bg-slate-800" />
+                            <div 
+                                onClick={() => violationCount > 0 && setShowIssuesModal(true)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-all hover:brightness-110 ${violationCount > 0 ? 'bg-red-900/20 text-red-400 border-red-900/50 hover:bg-red-900/30' : 'bg-green-900/20 text-green-400 border-green-900/50'}`}
+                            >
+                                {violationCount > 0 ? <AlertTriangle size={14}/> : <CheckCircle2 size={14}/>}
+                                {violationCount > 0 ? `${violationCount} Rest Issues` : 'Valid'}
+                            </div>
+                        </div>
                     )}
                 </div>
 
-                {/* RIGHT: Stats */}
-                {schedule && (
-                    <div className="flex items-center gap-4">
-                        <div className="flex gap-1 items-center">
-                            {matStats.map((count, idx) => (
-                                <div key={idx} className="flex flex-col items-center justify-center w-8 bg-slate-900 rounded border border-slate-800 py-1" title={`Mat ${idx + 1}: ${count} matches`}>
-                                    <span className="text-[8px] font-bold text-slate-500 uppercase">M{idx + 1}</span>
-                                    <span className={`text-[10px] font-bold ${count === 0 ? 'text-slate-600' : 'text-blue-200'}`}>{count}</span>
-                                </div>
-                            ))}
+                {/* MAIN TABLE AREA - Separate Container */}
+                <div className="flex-1 min-h-0 bg-slate-900 border border-slate-700 rounded-xl relative overflow-hidden flex flex-col">
+                    {!schedule ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-slate-900/30">
+                            <ListOrdered size={48} className="opacity-20 mb-4" />
+                            <h3 className="text-lg font-bold text-slate-300">No Schedule Generated</h3>
+                            <p className="text-sm">Click Generate to sequence bouts across {config.matsAvailable} mats.</p>
                         </div>
-                        <div className="h-8 w-px bg-slate-800" />
-                        <div 
-                            onClick={() => violationCount > 0 && setShowIssuesModal(true)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-all hover:brightness-110 ${violationCount > 0 ? 'bg-red-900/20 text-red-400 border-red-900/50 hover:bg-red-900/30' : 'bg-green-900/20 text-green-400 border-green-900/50'}`}
-                        >
-                            {violationCount > 0 ? <AlertTriangle size={14}/> : <CheckCircle2 size={14}/>}
-                            {violationCount > 0 ? `${violationCount} Rest Issues` : 'Valid'}
+                    ) : (
+                        <div className="flex-1 overflow-auto">
+                            <table className="w-full text-left text-sm text-slate-300">
+                                <thead className="bg-slate-800 text-slate-400 uppercase font-bold text-xs sticky top-0 z-10 shadow-sm">
+                                    {viewMode === 'by_mat' ? (
+                                        <tr>
+                                            <th className="px-4 py-3 border-r border-slate-700">Team (1)</th>
+                                            <th className="px-4 py-3 border-r border-slate-700">Wrestler (1)</th>
+                                            <th className="px-4 py-3 w-20 text-center">Mat</th>
+                                            <th className="px-4 py-3 w-20 text-center border-r border-slate-700">Match</th>
+                                            <th className="px-4 py-3 border-r border-slate-700">Wrestler (2)</th>
+                                            <th className="px-4 py-3">Team (2)</th>
+                                        </tr>
+                                    ) : (
+                                        <tr>
+                                            <th className="px-4 py-3">Team</th>
+                                            <th className="px-4 py-3">Wrestler</th>
+                                            <th className="px-4 py-3 text-center">Mat</th>
+                                            <th className="px-4 py-3 text-center">Match</th>
+                                        </tr>
+                                    )}
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {viewMode === 'by_mat' ? (
+                                        matViewData.map(m => (
+                                            <tr key={m.id} className={`hover:bg-slate-800/50 ${m.hasRestViolation ? 'bg-red-900/10' : ''}`}>
+                                                <td className="px-4 py-2 text-xs text-slate-400 border-r border-slate-800">{m.w1.teamAbbr}</td>
+                                                <td className={`px-4 py-2 border-r border-slate-800 font-medium ${m.hasRestViolation && m.restViolationReason.includes(m.w1.lastName) ? 'text-red-400' : 'text-white'}`}>
+                                                    {m.w1.firstName} {m.w1.lastName}
+                                                </td>
+                                                
+                                                {/* EDITABLE MAT CELL */}
+                                                <td className="px-2 py-2 text-center bg-slate-800/30">
+                                                    <EditableCell 
+                                                        value={m.matId} 
+                                                        type="number"
+                                                        onChange={(val) => handleScheduleChange(m.id, 'matId', val)} 
+                                                        className="font-mono text-white font-bold"
+                                                    />
+                                                </td>
+                                                
+                                                {/* EDITABLE MATCH CELL */}
+                                                <td className="px-2 py-2 text-center border-r border-slate-800">
+                                                    <EditableCell 
+                                                        value={m.boutNumber} 
+                                                        type="number"
+                                                        onChange={(val) => handleScheduleChange(m.id, 'boutNumber', val)} 
+                                                        className="font-mono text-slate-300"
+                                                    />
+                                                </td>
+
+                                                <td className={`px-4 py-2 border-r border-slate-800 font-medium ${m.hasRestViolation && m.restViolationReason.includes(m.w2.lastName) ? 'text-red-400' : 'text-white'}`}>
+                                                    {m.w2.firstName} {m.w2.lastName}
+                                                </td>
+                                                <td className="px-4 py-2 text-xs text-slate-400">{m.w2.teamAbbr}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        teamViewData.map(row => (
+                                            <tr key={row.uniqueId} className="hover:bg-slate-800/50">
+                                                <td className="px-4 py-2 font-medium text-slate-400">{row.team}</td>
+                                                <td className="px-4 py-2 font-bold text-white">{row.wrestlerName}</td>
+                                                <td className="px-4 py-2 font-mono text-center">{row.matId}</td>
+                                                <td className="px-4 py-2 font-mono text-center">{row.boutNumber}</td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
-                    </div>
-                )}
-            </div>
-
-            {/* MAIN TABLE AREA */}
-            <div className="flex-1 min-h-0 bg-slate-900 border border-slate-700 rounded-xl relative overflow-hidden flex flex-col">
-                {!schedule ? (
-                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-slate-900/30">
-                        <ListOrdered size={48} className="opacity-20 mb-4" />
-                        <h3 className="text-lg font-bold text-slate-300">No Schedule Generated</h3>
-                        <p className="text-sm">Click Generate to sequence bouts across {config.matsAvailable} mats.</p>
-                    </div>
-                ) : (
-                    <div className="flex-1 overflow-auto">
-                        <table className="w-full text-left text-sm text-slate-300">
-                            <thead className="bg-slate-800 text-slate-400 uppercase font-bold text-xs sticky top-0 z-10 shadow-sm">
-                                {viewMode === 'by_mat' ? (
-                                    <tr>
-                                        <th className="px-4 py-3 border-r border-slate-700">Team (1)</th>
-                                        <th className="px-4 py-3 border-r border-slate-700">Wrestler (1)</th>
-                                        <th className="px-4 py-3 w-20 text-center">Mat</th>
-                                        <th className="px-4 py-3 w-20 text-center border-r border-slate-700">Match</th>
-                                        <th className="px-4 py-3 border-r border-slate-700">Wrestler (2)</th>
-                                        <th className="px-4 py-3">Team (2)</th>
-                                    </tr>
-                                ) : (
-                                    <tr>
-                                        <th className="px-4 py-3">Team</th>
-                                        <th className="px-4 py-3">Wrestler</th>
-                                        <th className="px-4 py-3 text-center">Mat</th>
-                                        <th className="px-4 py-3 text-center">Match</th>
-                                    </tr>
-                                )}
-                            </thead>
-                            <tbody className="divide-y divide-slate-800">
-                                {viewMode === 'by_mat' ? (
-                                    matViewData.map(m => (
-                                        <tr key={m.id} className={`hover:bg-slate-800/50 ${m.hasRestViolation ? 'bg-red-900/10' : ''}`}>
-                                            <td className="px-4 py-2 text-xs text-slate-400 border-r border-slate-800">{m.w1.teamAbbr}</td>
-                                            <td className={`px-4 py-2 border-r border-slate-800 font-medium ${m.hasRestViolation && m.restViolationReason.includes(m.w1.lastName) ? 'text-red-400' : 'text-white'}`}>
-                                                {m.w1.firstName} {m.w1.lastName}
-                                            </td>
-                                            
-                                            {/* EDITABLE MAT CELL */}
-                                            <td className="px-2 py-2 text-center bg-slate-800/30">
-                                                <EditableCell 
-                                                    value={m.matId} 
-                                                    type="number"
-                                                    onChange={(val) => handleScheduleChange(m.id, 'matId', val)} 
-                                                    className="font-mono text-white font-bold"
-                                                />
-                                            </td>
-                                            
-                                            {/* EDITABLE MATCH CELL */}
-                                            <td className="px-2 py-2 text-center border-r border-slate-800">
-                                                <EditableCell 
-                                                    value={m.boutNumber} 
-                                                    type="number"
-                                                    onChange={(val) => handleScheduleChange(m.id, 'boutNumber', val)} 
-                                                    className="font-mono text-slate-300"
-                                                />
-                                            </td>
-
-                                            <td className={`px-4 py-2 border-r border-slate-800 font-medium ${m.hasRestViolation && m.restViolationReason.includes(m.w2.lastName) ? 'text-red-400' : 'text-white'}`}>
-                                                {m.w2.firstName} {m.w2.lastName}
-                                            </td>
-                                            <td className="px-4 py-2 text-xs text-slate-400">{m.w2.teamAbbr}</td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    teamViewData.map(row => (
-                                        <tr key={row.uniqueId} className="hover:bg-slate-800/50">
-                                            <td className="px-4 py-2 font-medium text-slate-400">{row.team}</td>
-                                            <td className="px-4 py-2 font-bold text-white">{row.wrestlerName}</td>
-                                            <td className="px-4 py-2 font-mono text-center">{row.matId}</td>
-                                            <td className="px-4 py-2 font-mono text-center">{row.boutNumber}</td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -12,7 +12,7 @@ export const formatDate = (dateString) => {
 };
 
 // Reusable Button Component
-export const Button = ({ children, onClick, variant = 'primary', icon: Icon, className = '', disabled = false, type = 'button' }) => {
+export const Button = ({ children, onClick, variant = 'primary', icon: Icon, className = '', disabled = false, type = 'button', ...props }) => {
   const baseStyle = "flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
   
   const variants = {
@@ -28,6 +28,7 @@ export const Button = ({ children, onClick, variant = 'primary', icon: Icon, cla
       onClick={onClick} 
       disabled={disabled}
       className={`${baseStyle} ${variants[variant]} ${className}`}
+      {...props}
     >
       {Icon && <Icon size={18} className="mr-2" />}
       {children}

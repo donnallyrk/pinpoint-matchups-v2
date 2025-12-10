@@ -15,7 +15,8 @@ import {
   X,
   Copy,
   Wand2,
-  Database
+  Database,
+  MoreVertical 
 } from 'lucide-react';
 import { Button } from '../utils';
 import { createPlayer, getPlayerValidationIssues, isPlayerValid } from '../models';
@@ -405,53 +406,67 @@ const RosterEditor = ({ roster = [], teamName = "Team", onChange, onImportFromMa
         </div>
       )}
 
-      {/* --- TOOLBAR --- */}
-      <div className="space-y-3 pb-2 border-b border-slate-800 shrink-0">
-        <div className="flex gap-4">
-            <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                <input 
-                    type="text" 
-                    placeholder="Search wrestlers..." 
-                    value={filter}
-                    onChange={e => setFilter(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-            </div>
-            {/* Relocated Button Next to Add Wrestler */}
-            <Button onClick={handleBulkSetDivision} variant="ghost" className="border border-slate-700 text-blue-400 hover:text-blue-300">
-                <Wand2 size={16} className="mr-2" /> Fill Missing Divs
-            </Button>
-            <Button onClick={() => openModal()} icon={Plus}>Add Wrestler</Button>
+      {/* --- TOOLBAR ROW 1: INTERACT --- */}
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+            <input 
+                type="text" 
+                placeholder="Search wrestlers..." 
+                value={filter}
+                onChange={e => setFilter(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+            />
         </div>
+      </div>
 
-        <div className="flex gap-2 flex-wrap items-center">
-            <Button variant="ghost" onClick={() => setShowHelp(!showHelp)} className="px-3 border border-slate-700 text-slate-400" title="Help">
-                <Info size={18} />
-            </Button>
+      {/* --- TOOLBAR ROW 2: POPULATE --- */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-800 shrink-0">
+        
+        {/* Primary Action */}
+        <div className="flex items-center gap-3">
+            <Button onClick={() => openModal()} icon={Plus} title="Manually create a single wrestler profile">Add Wrestler</Button>
             
-            {/* NEW: Import from Master Roster Button */}
             {onImportFromMaster && (
                 <Button 
-                    variant="ghost" 
+                    variant="secondary" 
                     onClick={onImportFromMaster} 
-                    className="border border-slate-700 text-blue-400 hover:text-white"
+                    className="border border-slate-700 text-slate-300"
+                    title="Import wrestlers from your team's master roster"
                 >
-                    <Database size={16} className="mr-2" /> Import from Master
+                    <Database size={16} className="mr-2" /> From Master
                 </Button>
             )}
+        </div>
 
-            <Button variant="ghost" onClick={handleDownloadTemplate} className="border border-slate-700 text-slate-300">
-                <FileDown size={16} className="mr-2" /> Roster Template
+        {/* Secondary Actions / Utilities */}
+        <div className="flex items-center gap-2">
+            <Button 
+                onClick={handleBulkSetDivision} 
+                variant="ghost" 
+                className="border border-slate-800 bg-slate-900/50 text-yellow-500 hover:text-yellow-400 hover:bg-slate-800"
+                title="Automatically populate the 'Division' field for any wrestler missing this information. Useful after bulk imports."
+            >
+                <Wand2 size={16} className="mr-2" /> Fill Missing Divs
             </Button>
-            <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg border border-slate-700 flex items-center transition-colors font-medium text-sm">
-                <Upload size={16} className="mr-2" />
-                Import CSV
-                <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
-            </label>
-            <Button variant="ghost" onClick={handleExport} className="border border-slate-700 text-slate-300">
-                <Download size={16} className="mr-2" /> Export CSV
-            </Button>
+
+            <div className="h-6 w-px bg-slate-800 mx-1"></div>
+
+            <div className="flex items-center gap-1">
+                <Button variant="ghost" onClick={() => setShowHelp(!showHelp)} className="px-3 text-slate-500 hover:text-white" title="View instructions for importing data">
+                    <Info size={18} />
+                </Button>
+                <Button variant="ghost" onClick={handleDownloadTemplate} className="px-3 text-slate-500 hover:text-white" title="Download a blank CSV template for data entry">
+                    <FileDown size={18} />
+                </Button>
+                <label className="cursor-pointer text-slate-500 hover:text-blue-400 p-2 rounded-lg transition-colors" title="Upload a populated CSV file to add multiple wrestlers at once">
+                    <Upload size={18} />
+                    <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+                </label>
+                <Button variant="ghost" onClick={handleExport} className="px-3 text-slate-500 hover:text-white" title="Export current roster data to a CSV file">
+                    <Download size={18} />
+                </Button>
+            </div>
         </div>
       </div>
 
@@ -468,7 +483,7 @@ const RosterEditor = ({ roster = [], teamName = "Team", onChange, onImportFromMa
                   { k: 'division', l: 'Division', tip: 'Required (e.g. Varsity, JV). Use "Fill Missing Divs" button to auto-populate empty fields.' },
                   { k: 'dob', l: 'DOB', tip: 'Required (YYYY-MM-DD)' },
                   { k: 'weight', l: 'Weight', tip: 'Required (> 0.0)' },
-                  { k: 'rating', l: 'Rating', tip: 'Required (0.0 - 5.0)' },
+                  { k: 'rating', l: 'Rating', tip: 'Required (0 - 5)' },
                   { k: 'gender', l: 'Gender', tip: 'Required (M or F)' },
                   { k: 'actions', l: '', tip: 'Actions' }
                 ].map(col => (

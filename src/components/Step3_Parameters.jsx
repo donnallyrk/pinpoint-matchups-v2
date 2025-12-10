@@ -11,6 +11,7 @@ import {
   Info
 } from 'lucide-react';
 import { Card } from '../utils';
+import PageHeader from './PageHeader';
 
 // --- SUB-COMPONENTS FOR CONTROLS ---
 
@@ -136,176 +137,180 @@ const Step3_Parameters = ({ event, onUpdate }) => {
   const MATCHES_PER_HOUR_PER_MAT = 12;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 h-full flex flex-col">
       
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-white">Event Parameters</h2>
-        <p className="text-slate-400 mt-1">Configure matchmaking rules and logistics.</p>
-      </div>
+      {/* Standard Page Header */}
+      <PageHeader 
+        title="Event Parameters" 
+        description="Configure matchmaking rules and logistics." 
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          
-          {/* --- LEFT COLUMN: EVENT LOGISTICS --- */}
-          <Card className="p-6 space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-                <div className="p-2 bg-blue-500/20 rounded-lg">
-                    <LayoutGrid size={20} className="text-blue-400"/>
+      {/* Core Content Container */}
+      <div className="flex-1 bg-slate-800/50 border border-slate-700 rounded-xl p-6 min-h-0 overflow-y-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            
+            {/* --- LEFT COLUMN: EVENT LOGISTICS --- */}
+            <div className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-slate-700 pb-4">
+                    <div className="p-2 bg-blue-500/20 rounded-lg">
+                        <LayoutGrid size={20} className="text-blue-400"/>
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-white text-lg">Event Logistics</h3>
+                        <p className="text-xs text-slate-400">Resource and timing constraints</p>
+                    </div>
                 </div>
-                <div>
-                    <h3 className="font-bold text-white text-lg">Event Logistics</h3>
-                    <p className="text-xs text-slate-400">Resource and timing constraints</p>
-                </div>
-            </div>
 
-            <div className="space-y-4">
-                <NumberControl 
-                    label="Available Mats" 
-                    value={params.mats} 
-                    min={1} max={10} 
-                    onChange={v => updateEventParams('mats', v)}
-                    tooltip="Number of mats available for concurrent matches."
-                />
-                <NumberControl 
-                    label="Event Duration" 
-                    value={params.durationHours} 
-                    min={1} max={12} step={0.5} unit=" hrs"
-                    onChange={v => updateEventParams('durationHours', v)}
-                    tooltip="Used to estimate total match capacity (matches/hour * mats * duration)."
-                />
-                <NumberControl 
-                    label="Max Matches / Wrestler" 
-                    value={params.maxMatches} 
-                    min={1} max={6} 
-                    onChange={v => updateEventParams('maxMatches', v)}
-                    tooltip="Maximum number of matches a single wrestler can be scheduled for."
-                />
-                <NumberControl 
-                    label="Min Rest (Matches)" 
-                    value={params.minRest} 
-                    min={0} max={10} 
-                    onChange={v => updateEventParams('minRest', v)}
-                    tooltip="Minimum number of matches a wrestler must sit out between bouts."
-                />
-            </div>
-
-            <div className="bg-blue-900/10 p-4 rounded-lg border border-blue-900/30">
-                <div className="flex justify-between text-xs text-blue-200 mb-1">
-                    <span>Estimated Capacity:</span>
-                    {/* UPDATED CALCULATION: Matches/Hr * Mats * Duration */}
-                    <span className="font-bold">~{Math.round(MATCHES_PER_HOUR_PER_MAT * params.mats * params.durationHours)} Matches</span>
-                </div>
-                <p className="text-[10px] text-blue-400/60">
-                    Based on avg. 5 mins/match cycle (12 matches/hr/mat).
-                </p>
-            </div>
-          </Card>
-
-          {/* --- RIGHT COLUMN: MATCH RULES --- */}
-          <Card className="p-6 space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-                <div className="p-2 bg-orange-500/20 rounded-lg">
-                    <Scale size={20} className="text-orange-400"/>
-                </div>
-                <div>
-                    <h3 className="font-bold text-white text-lg">Match Rules</h3>
-                    <p className="text-xs text-slate-400">Criteria for valid pairings</p>
-                </div>
-            </div>
-
-            <div className="space-y-4">
-                
-                {/* Pairing Strategy */}
-                <SelectControl 
-                    label="Age Pairing Mode"
-                    value={rules.ageMode}
-                    options={[
-                        { value: 'division', label: 'Strict Division' },
-                        { value: 'age', label: 'Age Tolerance' }
-                    ]}
-                    onChange={v => updateMatchRules('ageMode', v)}
-                    tooltip="Choose to match strictly by Division name or by Date of Birth proximity."
-                />
-
-                {rules.ageMode === 'age' && (
+                <div className="space-y-4">
                     <NumberControl 
-                        label="Max Age Gap" 
-                        value={rules.ageTolerance} 
-                        min={0} max={5} step={0.5} unit=" yrs"
-                        onChange={v => updateMatchRules('ageTolerance', v)}
-                        tooltip="Maximum allowed age difference between opponents."
+                        label="Available Mats" 
+                        value={params.mats} 
+                        min={1} max={10} 
+                        onChange={v => updateEventParams('mats', v)}
+                        tooltip="Number of mats available for concurrent matches."
                     />
-                )}
-
-                <NumberControl 
-                    label="Weight Tolerance" 
-                    value={rules.weightTolerance} 
-                    min={5} max={20} step={1} unit="%"
-                    onChange={v => updateMatchRules('weightTolerance', v)}
-                    tooltip="Max % difference: (Heavier - Lighter) / Lighter."
-                />
-
-                <NumberControl 
-                    label="Rating Tolerance" 
-                    value={rules.ratingTolerance} 
-                    min={0} max={3} step={0.5}
-                    onChange={v => updateMatchRules('ratingTolerance', v)}
-                    tooltip="Maximum difference in wrestler rating (skill level)."
-                />
-
-                {/* Toggles */}
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                    <ToggleControl 
-                        label="Mixed Gender"
-                        description="Allow Boys vs Girls"
-                        checked={rules.mixedGender === 'yes'}
-                        onChange={v => updateMatchRules('mixedGender', v ? 'yes' : 'no')}
-                        tooltip="If enabled, matches can be created between different genders."
+                    <NumberControl 
+                        label="Event Duration" 
+                        value={params.durationHours} 
+                        min={1} max={12} step={0.5} unit=" hrs"
+                        onChange={v => updateEventParams('durationHours', v)}
+                        tooltip="Used to estimate total match capacity (matches/hour * mats * duration)."
                     />
-                    <ToggleControl 
-                        label="Intra-Team"
-                        description="Teammates can match"
-                        checked={rules.intraTeam === 'yes'}
-                        onChange={v => updateMatchRules('intraTeam', v ? 'yes' : 'no')}
-                        tooltip="If enabled, matches can be created between wrestlers from the same team."
+                    <NumberControl 
+                        label="Max Matches / Wrestler" 
+                        value={params.maxMatches} 
+                        min={1} max={6} 
+                        onChange={v => updateEventParams('maxMatches', v)}
+                        tooltip="Maximum number of matches a single wrestler can be scheduled for."
+                    />
+                    <NumberControl 
+                        label="Min Rest (Matches)" 
+                        value={params.minRest} 
+                        min={0} max={10} 
+                        onChange={v => updateEventParams('minRest', v)}
+                        tooltip="Minimum number of matches a wrestler must sit out between bouts."
                     />
                 </div>
 
-                {/* Low Rating Shield */}
-                <div 
-                    onClick={() => updateMatchRules('lowRatingPairing', !rules.lowRatingPairing)}
-                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
-                        rules.lowRatingPairing 
-                        ? 'bg-emerald-500/10 border-emerald-500/50' 
-                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                    }`}
-                >
-                    <div className="flex items-start gap-3">
-                        <div className={`p-1.5 rounded-full shrink-0 ${rules.lowRatingPairing ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}`}>
-                            <ShieldAlert size={14} />
-                        </div>
-                        <div>
-                            <div className={`text-sm font-bold flex items-center gap-2 ${rules.lowRatingPairing ? 'text-emerald-400' : 'text-slate-300'}`}>
-                                Beginner Shield (Rating 0)
-                                <Tooltip text="Forces wrestlers with Rating 0 to ONLY match with other Rating 0 wrestlers, ignoring other tolerances." />
-                            </div>
-                            <p className="text-[10px] text-slate-500 mt-1 leading-tight max-w-[200px]">
-                                Only match rating "0" with other "0"s.
-                            </p>
-                        </div>
+                <div className="bg-blue-900/10 p-4 rounded-lg border border-blue-900/30">
+                    <div className="flex justify-between text-xs text-blue-200 mb-1">
+                        <span>Estimated Capacity:</span>
+                        {/* UPDATED CALCULATION: Matches/Hr * Mats * Duration */}
+                        <span className="font-bold">~{Math.round(MATCHES_PER_HOUR_PER_MAT * params.mats * params.durationHours)} Matches</span>
                     </div>
-                    
-                    {/* Explicit Status Indicator */}
-                    <div className={`text-xs font-bold px-2 py-1 rounded border ${
-                        rules.lowRatingPairing 
-                        ? 'bg-emerald-500 text-white border-emerald-400' 
-                        : 'bg-slate-800 text-slate-500 border-slate-700'
-                    }`}>
-                        {rules.lowRatingPairing ? 'ON' : 'OFF'}
-                    </div>
+                    <p className="text-[10px] text-blue-400/60">
+                        Based on avg. 5 mins/match cycle (12 matches/hr/mat).
+                    </p>
                 </div>
-
             </div>
-          </Card>
+
+            {/* --- RIGHT COLUMN: MATCH RULES --- */}
+            <div className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-slate-700 pb-4">
+                    <div className="p-2 bg-orange-500/20 rounded-lg">
+                        <Scale size={20} className="text-orange-400"/>
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-white text-lg">Match Rules</h3>
+                        <p className="text-xs text-slate-400">Criteria for valid pairings</p>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    
+                    {/* Pairing Strategy */}
+                    <SelectControl 
+                        label="Age Pairing Mode"
+                        value={rules.ageMode}
+                        options={[
+                            { value: 'division', label: 'Strict Division' },
+                            { value: 'age', label: 'Age Tolerance' }
+                        ]}
+                        onChange={v => updateMatchRules('ageMode', v)}
+                        tooltip="Choose to match strictly by Division name or by Date of Birth proximity."
+                    />
+
+                    {rules.ageMode === 'age' && (
+                        <NumberControl 
+                            label="Max Age Gap" 
+                            value={rules.ageTolerance} 
+                            min={0} max={5} step={0.5} unit=" yrs"
+                            onChange={v => updateMatchRules('ageTolerance', v)}
+                            tooltip="Maximum allowed age difference between opponents."
+                        />
+                    )}
+
+                    <NumberControl 
+                        label="Weight Tolerance" 
+                        value={rules.weightTolerance} 
+                        min={5} max={20} step={1} unit="%"
+                        onChange={v => updateMatchRules('weightTolerance', v)}
+                        tooltip="Max % difference: (Heavier - Lighter) / Lighter."
+                    />
+
+                    <NumberControl 
+                        label="Rating Tolerance" 
+                        value={rules.ratingTolerance} 
+                        min={0} max={3} step={0.5}
+                        onChange={v => updateMatchRules('ratingTolerance', v)}
+                        tooltip="Maximum difference in wrestler rating (skill level)."
+                    />
+
+                    {/* Toggles */}
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                        <ToggleControl 
+                            label="Mixed Gender"
+                            description="Allow Boys vs Girls"
+                            checked={rules.mixedGender === 'yes'}
+                            onChange={v => updateMatchRules('mixedGender', v ? 'yes' : 'no')}
+                            tooltip="If enabled, matches can be created between different genders."
+                        />
+                        <ToggleControl 
+                            label="Intra-Team"
+                            description="Teammates can match"
+                            checked={rules.intraTeam === 'yes'}
+                            onChange={v => updateMatchRules('intraTeam', v ? 'yes' : 'no')}
+                            tooltip="If enabled, matches can be created between wrestlers from the same team."
+                        />
+                    </div>
+
+                    {/* Low Rating Shield */}
+                    <div 
+                        onClick={() => updateMatchRules('lowRatingPairing', !rules.lowRatingPairing)}
+                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
+                            rules.lowRatingPairing 
+                            ? 'bg-emerald-500/10 border-emerald-500/50' 
+                            : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                        }`}
+                    >
+                        <div className="flex items-start gap-3">
+                            <div className={`p-1.5 rounded-full shrink-0 ${rules.lowRatingPairing ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}`}>
+                                <ShieldAlert size={14} />
+                            </div>
+                            <div>
+                                <div className={`text-sm font-bold flex items-center gap-2 ${rules.lowRatingPairing ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                    Beginner Shield (Rating 0)
+                                    <Tooltip text="Forces wrestlers with Rating 0 to ONLY match with other Rating 0 wrestlers, ignoring other tolerances." />
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1 leading-tight max-w-[200px]">
+                                    Only match rating "0" with other "0"s.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        {/* Explicit Status Indicator */}
+                        <div className={`text-xs font-bold px-2 py-1 rounded border ${
+                            rules.lowRatingPairing 
+                            ? 'bg-emerald-500 text-white border-emerald-400' 
+                            : 'bg-slate-800 text-slate-500 border-slate-700'
+                        }`}>
+                            {rules.lowRatingPairing ? 'ON' : 'OFF'}
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
       </div>
     </div>
   );

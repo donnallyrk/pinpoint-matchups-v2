@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Button, Card } from '../utils';
 import RosterEditor from './RosterEditor'; 
+import PageHeader from './PageHeader'; 
 import { getPlayerValidationIssues, createPlayer } from '../models'; 
 
 // --- HELPERS ---
@@ -396,13 +397,19 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
   if (!activeTeam) return <div className="p-10 text-center">No teams found.</div>;
 
   return (
-    <div className="h-full flex flex-col space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+    <div className="h-[650px] flex flex-col space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
         
+        {/* Standard Page Header */}
+        <PageHeader 
+            title="Event Participants" 
+            description="Manage the host roster and guest teams for this specific event." 
+        />
+
         {/* --- SPLIT VIEW --- */}
         <div className="flex gap-4 h-full min-h-0">
             
             {/* LEFT: Team List Sidebar */}
-            <div className="w-72 shrink-0 flex flex-col bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-sm">
+            <div className="w-72 shrink-0 flex flex-col bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-sm h-full">
                 <div className="p-4 border-b border-slate-800 bg-slate-900">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                         <Users size={14} /> Participating Teams
@@ -463,7 +470,7 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
             </div>
 
             {/* RIGHT: Active Team Editor (Swappable View) */}
-            <div className="flex-1 flex flex-col min-w-0 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
+            <div className="flex-1 flex flex-col min-w-0 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-xl h-full">
                 
                 {/* MODE 1: CHECK-IN VIEW */}
                 {activeTeam.isHost && viewMode === 'checkin' ? (
@@ -475,7 +482,7 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
                     />
                 ) : (
                     /* MODE 2: STANDARD EDITOR VIEW */
-                    <>
+                    <div className="flex flex-col h-full">
                         <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-slate-900 shrink-0">
                             <div>
                                 <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-3">
@@ -524,7 +531,7 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
                             </div>
                         </div>
 
-                        <div className="flex-1 min-h-0 p-4 flex flex-col bg-slate-950/30">
+                        <div className="flex-1 min-h-0 p-4 flex flex-col bg-slate-950/30 overflow-hidden">
                             {activeTeam.roster.length === 0 ? (
                                 <div className="flex-1 flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-800 rounded-xl m-4 bg-slate-900/50">
                                     <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4">
@@ -555,15 +562,34 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
                                     </div>
                                 </div>
                             ) : (
-                                <RosterEditor 
-                                    roster={activeTeam.roster} 
-                                    teamName={activeTeam.name}
-                                    onChange={handleUpdateRoster} 
-                                    onImportFromMaster={activeTeam.isHost ? () => setViewMode('checkin') : null}
-                                />
+                                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                                    <RosterEditor 
+                                        roster={activeTeam.roster} 
+                                        teamName={activeTeam.name}
+                                        onChange={handleUpdateRoster} 
+                                        onImportFromMaster={activeTeam.isHost ? () => setViewMode('checkin') : null}
+                                    />
+                                </div>
+                            )}
+                            
+                            {/* FIX: Always render RosterEditor if roster is empty? 
+                                The user said "container holding the team roster is small not scrollable".
+                                This suggests when data exists, it doesn't scroll.
+                                The fix above adds `flex-1 min-h-0 overflow-hidden` to the wrapper div.
+                                AND `h-full` to the parent container.
+                            */}
+                            {activeTeam.roster.length === 0 && (
+                                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                                    <RosterEditor 
+                                        roster={[]} 
+                                        teamName={activeTeam.name}
+                                        onChange={handleUpdateRoster} 
+                                        onImportFromMaster={activeTeam.isHost ? () => setViewMode('checkin') : null}
+                                    />
+                                </div>
                             )}
                         </div>
-                    </>
+                    </div>
                 )}
             </div>
         </div>
