@@ -572,7 +572,7 @@ export default function App() {
                         <div className="text-xs text-slate-500">Coach</div>
                     </div>
                     {user.photoURL ? (
-                        <img src={user.photoURL} alt="User" className="h-8 w-8 rounded-full border border-slate-600" />
+                        <img src={user.photoURL} alt="Profile" referrerPolicy="no-referrer" className="h-8 w-8 rounded-full border border-slate-600" />
                     ) : (
                         <div className="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600">
                             <User size={16} />
