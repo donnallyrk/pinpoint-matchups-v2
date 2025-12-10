@@ -25,6 +25,7 @@ import Step1_EventDetails from './Step1_EventDetails';
 import Step2_RosterManager from './Step2_RosterManager';
 import Step3_Parameters from './Step3_Parameters';
 import Step4_Matchmaking from './Step4_Matchmaking';
+import Step5_Sequencing from './Step5_Sequencing';
 
 // --- DATA VALIDATION MODAL (Existing) ---
 const ValidationGatekeeperModal = ({ invalidWrestlers, onCancel, onDropAndProceed }) => {
@@ -189,7 +190,7 @@ const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
   const handleSafeguardedUpdate = (stepId, eventId, data) => {
     // Determine if we need to warn the user based on "Future" data existing
     const hasMatchups = event.matchups && event.matchups.length > 0;
-    const hasSequencing = event.sequencing && event.sequencing.length > 0; // Future-proofing
+    const hasSequencing = event.sequencing && event.sequencing.length > 0; 
     
     let consequences = [];
     let resetData = {};
@@ -277,6 +278,7 @@ const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
   const canProceed = () => {
     if (currentStep === 1) return event.name && event.date; 
     if (currentStep === 2) return event.participatingTeams?.length > 0;
+    if (currentStep === 4) return event.matchups?.length > 0;
     return true; 
   };
 
@@ -488,7 +490,15 @@ const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
                 />
             )}
 
-            {currentStep > 4 && (
+            {currentStep === 5 && (
+                <Step5_Sequencing
+                    key={`step5-${revertKey}`}
+                    event={event} 
+                    onUpdate={(id, data) => handleSafeguardedUpdate(5, id, data)}
+                />
+            )}
+
+            {currentStep > 5 && (
                 <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4">
                     <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center animate-pulse">
                         <ListOrdered size={32} />

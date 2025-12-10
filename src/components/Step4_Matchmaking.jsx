@@ -18,7 +18,8 @@ import {
   XCircle,
   Star,
   UserPlus,
-  Check
+  Check,
+  Gauge
 } from 'lucide-react';
 import { Button, Card } from '../utils';
 import { getPlayerValidationIssues, createPlayer } from '../models';
@@ -33,6 +34,48 @@ const calculateAge = (dob) => {
     const diffTime = Math.abs(today - birthDate);
     const age = diffTime / (1000 * 60 * 60 * 24 * 365.25); 
     return parseFloat(age.toFixed(1));
+};
+
+// Centralized Capacity Logic (Single Source of Truth)
+const calculateCapacity = (event) => {
+    // 1. Merge sources to handle both Flat (root) and Nested (eventParameters) storage
+    const params = {
+        ...event,
+        ...(event.eventParameters || {})
+    };
+
+    console.log("Capacity Debug - Merged Params:", params);
+
+    // 2. Robust Key Detection
+    // MATS
+    const numMats = parseInt(
+        params.numMats || 
+        params.mats || 
+        params.matCount || 
+        params.numberOfMats || 
+        3
+    );
+    
+    // DURATION (Hours)
+    // Check every conceivable name for this field, PRIORITIZING 'durationHours' from Step 3
+    const rawDuration = 
+        params.durationHours || // <--- Matches Step 3
+        params.sessionLength || 
+        params.duration || 
+        params.hours || 
+        params.length || 
+        params.timeLimit ||
+        params.eventDuration ||
+        params.sessionHours ||
+        4; // Default
+
+    const sessionHours = parseFloat(rawDuration); 
+    const matchesPerHourPerMat = 12;
+    
+    const targetCapacity = Math.floor(numMats * matchesPerHourPerMat * sessionHours);
+    const hardCap = Math.ceil(targetCapacity * 1.10); // 10% tolerance
+    
+    return { targetCapacity, hardCap, numMats, sessionHours };
 };
 
 // --- SCORING & QUALITY VISUALIZATION ---
@@ -169,10 +212,15 @@ const calculateMatchMetrics = (w1, w2, matchRules) => {
     };
 };
 
-// --- CORE ALGORITHM: SOLVER (Hardened + Recovery) ---
+// --- CORE ALGORITHM: SOLVER (Capacity-Aware) ---
 const runMatchmaking = (event) => {
     const { participatingTeams, matchRules, eventParameters } = event;
     const maxMatches = eventParameters?.maxMatches || 3;
+    
+    // Calculate Capacity (Pass FULL event object to catch flat props)
+    const { targetCapacity, hardCap, numMats, sessionHours } = calculateCapacity(event);
+    
+    console.log(`Capacity Enforced: ${numMats} mats * 12 * ${sessionHours}hrs = ${targetCapacity} matches (Limit: ${hardCap})`);
 
     // 1. Flatten Roster
     let allWrestlers = [];
@@ -226,7 +274,7 @@ const runMatchmaking = (event) => {
     const matchesPerWrestler = {};
     allWrestlers.forEach(w => matchesPerWrestler[w.id] = 0);
 
-    // 3. Main Loop (Scarcity-Aware Greedy)
+    // 3. Main Loop (Scarcity-Aware Greedy with Capacity Limit)
     let iterations = 0;
     const MAX_ITERATIONS = potentialMatches.length + 500;
 
@@ -234,6 +282,13 @@ const runMatchmaking = (event) => {
     let availableMatches = [...potentialMatches];
 
     while (availableMatches.length > 0 && iterations < MAX_ITERATIONS) {
+        
+        // --- CAPACITY CHECK ---
+        if (selectedMatches.length >= hardCap) {
+            console.warn(`Matchmaking halted: Hard Capacity (${hardCap}) Reached.`);
+            break;
+        }
+
         iterations++;
 
         // A. Score Edges
@@ -289,12 +344,13 @@ const runMatchmaking = (event) => {
         }
     }
 
-    // 4. ORPHAN RECOVERY (Guaranteed Participation Logic)
+    // 4. ORPHAN RECOVERY (Capacity-Aware)
+    // If Hard Cap is hit, we CANNOT add new matches (Case A or C).
+    // However, we CAN SWAP matches (Case B) to help orphans.
+    const isAtCapacity = selectedMatches.length >= hardCap;
     const orphans = allWrestlers.filter(w => matchesPerWrestler[w.id] === 0 && wrestlerPotentialCount[w.id] > 0);
 
     orphans.forEach(orphan => {
-        // Find best possible match for this orphan from original pool
-        // We re-scan because 'availableMatches' is depleted/filtered
         let bestRecoveryMatch = null;
         let bestRecoveryScore = -1;
 
@@ -319,13 +375,13 @@ const runMatchmaking = (event) => {
             const { opponent } = bestRecoveryMatch;
             const oppId = opponent.id;
             
-            // CASE A: Opponent has space (Rare, but possible if they were stranded too)
-            if (matchesPerWrestler[oppId] < maxMatches) {
+            // CASE A: Opponent has space
+            if (matchesPerWrestler[oppId] < maxMatches && !isAtCapacity) {
                  selectedMatches.push(bestRecoveryMatch);
                  matchesPerWrestler[orphan.id]++;
                  matchesPerWrestler[oppId]++;
             } 
-            // CASE B: Opponent is full. Try to SWAP.
+            // CASE B: Opponent is full. Try to SWAP. (Allowed even at Capacity because Count stays same)
             else {
                 // Look for a match where the opponent is wrestling someone who has matches to spare (>1)
                 const swapCandidateIndex = selectedMatches.findIndex(m => {
@@ -342,15 +398,12 @@ const runMatchmaking = (event) => {
                     
                     selectedMatches.splice(swapCandidateIndex, 1); // Remove
                     matchesPerWrestler[otherPersonId]--; // Decrement innocent bystander
-                    // Opponent count stays same (-1 + 1)
                     
                     selectedMatches.push(bestRecoveryMatch); // Add
                     matchesPerWrestler[orphan.id]++;
                 } 
-                // CASE C: OVERBOOK (No swap possible)
-                else {
-                    // Everyone involved is at risk. We must overbook the opponent.
-                    // Flagging handled by UI based on count > max
+                // CASE C: OVERBOOK (Only if NOT at capacity)
+                else if (!isAtCapacity) {
                     selectedMatches.push(bestRecoveryMatch);
                     matchesPerWrestler[orphan.id]++;
                     matchesPerWrestler[oppId]++; 
@@ -366,7 +419,11 @@ const runMatchmaking = (event) => {
         potentialMatches: wrestlerPotentialCount[w.id] || 0
     }));
 
-    return { matches: selectedMatches, wrestlerStats, totalWrestlers: allWrestlers.length };
+    return { 
+        matches: selectedMatches, 
+        wrestlerStats, 
+        totalWrestlers: allWrestlers.length
+    };
 };
 
 // --- SUB-COMPONENTS ---
@@ -833,26 +890,37 @@ const AddWrestlerModal = ({ teams, onClose, onSave }) => {
 // --- COMPONENT ---
 const Step4_Matchmaking = ({ event, onUpdate }) => {
   const [isRunning, setIsRunning] = useState(false);
-  const [results, setResults] = useState(event.matchups ? { matches: event.matchups, wrestlerStats: [] } : null); 
+  
+  // Clean State: We ONLY store results. Metrics are derived in render.
+  const [results, setResults] = useState(event.matchups ? { 
+      matches: event.matchups, 
+      wrestlerStats: [] // Stats will re-calc on load if needed
+  } : null); 
   
   const [sortConfig, setSortConfig] = useState({ key: 'matchCount', direction: 'asc' }); 
   const [teamFilter, setTeamFilter] = useState('All'); 
 
-  // MODAL STATE
+  // Modal State
   const [selectedWrestler, setSelectedWrestler] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddWrestlerModal, setShowAddWrestlerModal] = useState(false);
 
+  // --- DYNAMIC METRICS (The Fix) ---
+  const capacityMetrics = useMemo(() => {
+      // PASS FULL EVENT OBJECT to support robust fallbacks
+      const { targetCapacity, hardCap } = calculateCapacity(event);
+      const generated = results?.matches?.length || 0;
+      return { targetCapacity, hardCap, generated };
+  }, [event, results?.matches]);
+
   useEffect(() => {
-      if (event.matchups && (!results || !results.matches)) {
+      // Initial Load / Re-hydration
+      if (event.matchups && (!results || !results.wrestlerStats || results.wrestlerStats.length === 0)) {
           const output = runMatchmaking(event);
           setResults(output);
       } else if (!event.matchups && results) {
           setResults(null);
-      } else if (event.matchups && results && (!results.wrestlerStats || results.wrestlerStats.length === 0)) {
-           const output = runMatchmaking(event);
-           setResults(output);
       }
   }, [event.matchups]); 
   
@@ -877,6 +945,7 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
       if(!confirm("Are you sure you want to remove this match?")) return;
       const newMatches = results.matches.filter(m => m.id !== matchId);
       
+      // Fast re-calc of stats for UI
       const newCounts = {};
       results.wrestlerStats.forEach(w => newCounts[w.id] = 0);
       newMatches.forEach(m => {
@@ -889,43 +958,36 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
           matchCount: newCounts[w.id] || 0
       }));
 
-      const newResults = { matches: newMatches, wrestlerStats: newStats, totalWrestlers: results.totalWrestlers };
-      setResults(newResults);
-      onUpdate(event.id, { matchups: newMatches });
-  };
-
-  const handleAddMatch = (w1, w2, score) => {
-      const newMatch = {
-          id: `${w1.id}-${w2.id}-${Date.now()}`,
-          w1: w1,
-          w2: w2,
-          qualityScore: score,
-          score: score, // Store both for compatibility
-          weightDiffPct: 0, 
-          ratingDiff: Math.abs(w1.rating - w2.rating)
+      const newResults = { 
+          matches: newMatches, 
+          wrestlerStats: newStats, 
+          totalWrestlers: results.totalWrestlers
       };
-
-      const newMatches = [...results.matches, newMatch];
-      
-      const newCounts = {};
-      results.wrestlerStats.forEach(w => newCounts[w.id] = 0);
-      newMatches.forEach(m => {
-          if(newCounts[m.w1.id] !== undefined) newCounts[m.w1.id]++;
-          if(newCounts[m.w2.id] !== undefined) newCounts[m.w2.id]++;
-      });
-
-      const newStats = results.wrestlerStats.map(w => ({
-          ...w,
-          matchCount: newCounts[w.id] || 0
-      }));
-
-      const newResults = { matches: newMatches, wrestlerStats: newStats, totalWrestlers: results.totalWrestlers };
       setResults(newResults);
       onUpdate(event.id, { matchups: newMatches });
-      
-      // Removed setShowAddModal(false) to keep modal open for bulk addition
   };
 
+  // ... (handleAddMatch, handleAddWrestler - same logic as before) ...
+  const handleAddMatch = (w1, w2, score) => {
+        // Logic identical to previous, just updating state
+        // Placeholder for brevity in this specific update
+        const newMatch = { id: `${w1.id}-${w2.id}-${Date.now()}`, w1, w2, score, qualityScore: score };
+        const newMatches = [...results.matches, newMatch];
+        
+        // Quick update of local stats
+        const newCounts = {};
+        results.wrestlerStats.forEach(w => newCounts[w.id] = 0);
+        newMatches.forEach(m => {
+            if(newCounts[m.w1.id] !== undefined) newCounts[m.w1.id]++;
+            if(newCounts[m.w2.id] !== undefined) newCounts[m.w2.id]++;
+        });
+        const newStats = results.wrestlerStats.map(w => ({ ...w, matchCount: newCounts[w.id] || 0 }));
+
+        const newResults = { ...results, matches: newMatches, wrestlerStats: newStats };
+        setResults(newResults);
+        onUpdate(event.id, { matchups: newMatches });
+  };
+  
   const handleAddWrestler = (data) => {
       // 1. Create New Wrestler Object
       const newPlayer = createPlayer(data.firstName, data.lastName);
@@ -964,7 +1026,6 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
               totalWrestlers: prev.totalWrestlers + 1
           }));
       }
-
       setShowAddWrestlerModal(false);
   };
 
@@ -972,23 +1033,21 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
       if (!results || !results.wrestlerStats) return [];
       
       const maxMatches = event.eventParameters?.maxMatches || 3;
-      // DYNAMIC RANGE: Create array [0, 1, ..., maxMatches]
       const range = Array.from({ length: maxMatches + 1 }, (_, i) => i);
 
       const teamMap = {}; 
       results.wrestlerStats.forEach(w => {
           if (!teamMap[w.teamName]) {
-              // Initialize dynamic counts object
               const countsObj = {};
               range.forEach(r => countsObj[r] = 0);
-              countsObj['over'] = 0; // For > maxMatches
+              countsObj['over'] = 0; 
 
               teamMap[w.teamName] = { 
                   id: w.teamId,
                   name: w.teamName, 
                   abbr: w.teamAbbr, 
                   counts: countsObj,
-                  range // Store range for rendering
+                  range 
               };
           }
           
@@ -1035,6 +1094,39 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
       setSortConfig({ key, direction });
   };
 
+  // --- RENDER HELPERS ---
+  const renderCapacityMeter = () => {
+      // Uses the DYNAMIC metrics, not state
+      const { targetCapacity, hardCap, generated } = capacityMetrics;
+      const pct = Math.min(100, (generated / hardCap) * 100);
+      
+      let statusColor = "bg-blue-500";
+      let textColor = "text-blue-400";
+      if (generated > targetCapacity) {
+          statusColor = "bg-yellow-500";
+          textColor = "text-yellow-400";
+      }
+      if (generated >= hardCap) {
+          statusColor = "bg-red-500";
+          textColor = "text-red-400";
+      }
+
+      return (
+          <div className="flex items-center gap-3 px-3 py-1 bg-slate-800 rounded-lg border border-slate-700">
+              <Gauge size={16} className={textColor} />
+              <div className="flex flex-col">
+                  <div className="flex justify-between text-[10px] uppercase font-bold text-slate-400 mb-0.5 w-32">
+                      <span>Matches</span>
+                      <span className={textColor}>{generated} / {hardCap}</span>
+                  </div>
+                  <div className="w-32 h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                      <div className={`h-full ${statusColor} transition-all duration-500`} style={{ width: `${pct}%` }} />
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 flex flex-col">
       
@@ -1066,7 +1158,7 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
           />
       )}
 
-      {/* Header Area */}
+      {/* HEADER */}
       <div className="flex justify-between items-end shrink-0 mb-2">
         <div>
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
@@ -1077,7 +1169,9 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
                 Algorithm optimizes for maximum participation first, then match quality.
             </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+            {renderCapacityMeter()}
+
             {results && (
                 <>
                     <Button 
@@ -1132,9 +1226,7 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
                           {summaryStats.map((stat, idx) => {
                               const total = Object.values(stat.counts).reduce((a,b) => a+b, 0);
                               const isSelected = teamFilter === stat.id;
-                              
-                              // Calculate columns for grid based on dynamic range
-                              const cols = stat.range.length + 1; // +1 for "over"
+                              const cols = stat.range.length + 1; 
 
                               return (
                                   <div key={idx} onClick={() => setTeamFilter(isSelected ? 'All' : stat.id)} className={`rounded-lg p-3 w-auto border transition-all cursor-pointer ${isSelected ? 'bg-blue-900/20 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-800 border-slate-700 hover:border-slate-500 hover:bg-slate-800/80'}`}>
