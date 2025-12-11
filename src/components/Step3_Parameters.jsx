@@ -170,6 +170,10 @@ const Step3_Parameters = ({ event, onUpdate }) => {
   // MATCH CYCLE CONSTANT (5 Minutes)
   // Logic: 60 mins / 5 min cycle = 12 matches per hour per mat
   const MATCHES_PER_HOUR_PER_MAT = 12;
+  
+  // Calculate Capacity Range
+  const baseCapacity = Math.round(MATCHES_PER_HOUR_PER_MAT * params.mats * params.durationHours);
+  const maxCapacity = Math.ceil(baseCapacity * 1.10); // +10% buffer
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 h-full flex flex-col">
@@ -230,11 +234,11 @@ const Step3_Parameters = ({ event, onUpdate }) => {
                 <div className="bg-blue-900/10 p-4 rounded-lg border border-blue-900/30">
                     <div className="flex justify-between text-xs text-blue-200 mb-1">
                         <span>Estimated Capacity:</span>
-                        {/* UPDATED CALCULATION: Matches/Hr * Mats * Duration */}
-                        <span className="font-bold">~{Math.round(MATCHES_PER_HOUR_PER_MAT * params.mats * params.durationHours)} Matches</span>
+                        {/* UPDATED CALCULATION: Range from Base to Base+10% */}
+                        <span className="font-bold">~{baseCapacity} - {maxCapacity} Matches</span>
                     </div>
                     <p className="text-[10px] text-blue-400/60">
-                        Based on avg. 5 mins/match cycle (12 matches/hr/mat).
+                        Based on avg. 5 mins/match cycle (12 matches/hr/mat) with a 10% buffer.
                     </p>
                 </div>
             </div>

@@ -503,7 +503,19 @@ const Step5_Sequencing = ({ event, onUpdate }) => {
         let filtered = rows;
         if (filterTeam !== 'All') filtered = filtered.filter(r => r.team === filterTeam);
         if (wrestlerSearch) filtered = filtered.filter(r => r.wrestlerName.toLowerCase().includes(wrestlerSearch.toLowerCase()));
-        return filtered.sort((a,b) => a.wrestlerName.localeCompare(b.wrestlerName));
+        
+        // --- UPDATED SORTING: Wrestler Name, then Match #, then Mat # ---
+        return filtered.sort((a,b) => {
+            const nameCompare = a.wrestlerName.localeCompare(b.wrestlerName);
+            if (nameCompare !== 0) return nameCompare;
+            
+            // If same wrestler (unlikely here as row per match-participant, but good practice)
+            // Sort by bout number
+            if (a.boutNumber !== b.boutNumber) return a.boutNumber - b.boutNumber;
+            
+            // Finally mat
+            return a.matId - b.matId;
+        });
     }, [schedule, filterTeam, wrestlerSearch]);
 
     const teams = useMemo(() => event.participatingTeams ? event.participatingTeams.map(t => t.name).sort() : [], [event.participatingTeams]);
