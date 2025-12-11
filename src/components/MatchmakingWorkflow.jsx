@@ -26,6 +26,7 @@ import Step2_RosterManager from './Step2_RosterManager';
 import Step3_Parameters from './Step3_Parameters';
 import Step4_Matchmaking from './Step4_Matchmaking';
 import Step5_Sequencing from './Step5_Sequencing';
+import Step6_Publish from './Step6_Publish'; // IMPORTED STEP 6
 
 // --- DATA VALIDATION MODAL (Existing) ---
 const ValidationGatekeeperModal = ({ invalidWrestlers, onCancel, onDropAndProceed }) => {
@@ -279,6 +280,7 @@ const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
     if (currentStep === 1) return event.name && event.date; 
     if (currentStep === 2) return event.participatingTeams?.length > 0;
     if (currentStep === 4) return event.matchups?.length > 0;
+    if (currentStep === 5) return event.sequencing?.length > 0; // Added check for step 5
     return true; 
   };
 
@@ -498,14 +500,12 @@ const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
                 />
             )}
 
-            {currentStep > 5 && (
-                <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4">
-                    <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center animate-pulse">
-                        <ListOrdered size={32} />
-                    </div>
-                    <h3 className="text-xl font-bold text-white">Work in Progress</h3>
-                    <p>The "{steps[currentStep-1].label}" module is being built.</p>
-                </div>
+            {currentStep === 6 && (
+                <Step6_Publish
+                    key={`step6-${revertKey}`}
+                    event={event} 
+                    onUpdate={(id, data) => handleSafeguardedUpdate(6, id, data)}
+                />
             )}
         </div>
       </div>
@@ -521,13 +521,22 @@ const MatchmakingWorkflow = ({ event, roster, hostName, onUpdateEvent }) => {
             <ChevronLeft className="mr-2" size={18}/> Back
         </Button>
         
-        <Button 
-            onClick={handleNextStep} 
-            disabled={!canProceed()}
-            className={`${!canProceed() ? 'opacity-50 cursor-not-allowed' : 'shadow-lg shadow-blue-900/20'}`}
-        >
-            {currentStep === steps.length ? 'Finish' : 'Next Step'} <ChevronRight className="ml-2" size={18}/>
-        </Button>
+        {currentStep < steps.length ? (
+            <Button 
+                onClick={handleNextStep} 
+                disabled={!canProceed()}
+                className={`${!canProceed() ? 'opacity-50 cursor-not-allowed' : 'shadow-lg shadow-blue-900/20'}`}
+            >
+                Next Step <ChevronRight className="ml-2" size={18}/>
+            </Button>
+        ) : (
+            <Button 
+                disabled={true}
+                className="opacity-50 cursor-not-allowed"
+            >
+                All Steps Complete
+            </Button>
+        )}
       </div>
     </div>
   );

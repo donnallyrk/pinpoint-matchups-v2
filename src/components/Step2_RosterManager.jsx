@@ -16,14 +16,16 @@ import {
   ArrowUpDown,
   Upload,
   Database,
-  AlertCircle
+  AlertCircle,
+  Edit2,
+  Lock // Added Lock icon
 } from 'lucide-react';
 import { Button, Card } from '../utils';
 import RosterEditor from './RosterEditor'; 
 import PageHeader from './PageHeader'; 
 import { getPlayerValidationIssues, createPlayer } from '../models'; 
 
-// --- HELPERS ---
+// --- HELPERS (Keep existing helpers) ---
 const normalizeDate = (dateStr) => {
   if (!dateStr) return '';
   const cleanStr = dateStr.trim();
@@ -52,7 +54,6 @@ const normalizeDate = (dateStr) => {
   return null;
 };
 
-// Generate a unique abbreviation based on name and existing teams
 const generateUniqueAbbr = (name, existingTeams) => {
     let base = name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
     if (base.length < 2) base = name.substring(0, 2).toUpperCase().padEnd(3, 'X');
@@ -68,8 +69,75 @@ const generateUniqueAbbr = (name, existingTeams) => {
     return candidate;
 };
 
-// --- NEW EMBEDDED VIEW: HOST CHECK-IN ---
+// --- MODALS (Keep existing modals) ---
+const EditTeamModal = ({ team, allTeams, onClose, onSave }) => {
+    const [name, setName] = useState(team.name);
+    const [abbr, setAbbr] = useState(team.abbr);
+    const [error, setError] = useState('');
+
+    const handleSave = () => {
+        if (!name.trim() || !abbr.trim()) {
+            setError('Name and Abbreviation are required.');
+            return;
+        }
+        const cleanAbbr = abbr.toUpperCase().substring(0, 4);
+        const isUnique = !allTeams.some(t => t.id !== team.id && t.abbr === cleanAbbr);
+        if (!isUnique) {
+            setError(`Abbreviation "${cleanAbbr}" is already taken by another team.`);
+            return;
+        }
+        onSave(name, cleanAbbr);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-sm shadow-2xl">
+                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+                    <h3 className="font-bold text-white flex items-center gap-2">
+                        <Edit2 size={16} className="text-blue-400"/> Edit Team Details
+                    </h3>
+                    <button onClick={onClose}><X size={16} className="text-slate-500 hover:text-white" /></button>
+                </div>
+                <div className="p-5 space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Team Name</label>
+                        <input 
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500 transition-colors"
+                            value={name}
+                            onChange={e => { setName(e.target.value); setError(''); }}
+                            autoFocus
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">Abbreviation</label>
+                        <input 
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white outline-none focus:border-blue-500 transition-colors uppercase font-mono"
+                            maxLength={4}
+                            value={abbr}
+                            onChange={e => { setAbbr(e.target.value.toUpperCase()); setError(''); }}
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1">Unique 2-4 character code (e.g. RHS) used in schedule tables.</p>
+                    </div>
+                    {error && (
+                        <div className="flex items-center gap-2 text-red-400 text-xs bg-red-900/10 p-3 rounded border border-red-900/20">
+                            <AlertCircle size={14} className="shrink-0" /> {error}
+                        </div>
+                    )}
+                </div>
+                <div className="p-4 border-t border-slate-800 bg-slate-950/30 flex justify-end gap-2 rounded-b-xl">
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button onClick={handleSave}>Save Changes</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const HostCheckInView = ({ masterRoster, currentEventRoster, onCancel, onSave }) => {
+    // ... [Content unchanged from previous version] ...
+    // Re-inserting logic to save space, assuming it's present or handled by you if I use ...
+    // Since I need to produce full file, I will include the full logic of HostCheckInView.
+    
     const [selectedIds, setSelectedIds] = useState(() => {
         if (currentEventRoster && currentEventRoster.length > 0) {
             return new Set(currentEventRoster.map(p => p.id));
@@ -264,7 +332,15 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
   });
 
   const [activeTeamId, setActiveTeamId] = useState('host');
-  const [viewMode, setViewMode] = useState('view'); 
+  const [viewMode, setViewMode] = useState('view');
+  
+  // Modal State
+  const [showEditTeamModal, setShowEditTeamModal] = useState(false);
+
+  // --- LOCKED STATE LOGIC ---
+  const isLocked = useMemo(() => {
+      return event.matchups && event.matchups.length > 0;
+  }, [event.matchups]);
 
   const activeTeam = teams.find(t => t.id === activeTeamId) || teams[0];
   const updateTeams = (newTeams) => {
@@ -286,6 +362,7 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
   };
 
   const handleAddTeam = () => {
+      if (isLocked) return; // Prevent action if locked
       const name = prompt("Enter Guest Team Name:");
       if (!name) return;
       const abbr = generateUniqueAbbr(name, teams);
@@ -295,28 +372,19 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
       setViewMode('view');
   };
 
-  const handleEditTeamDetails = () => {
-      const name = prompt("Team Name:", activeTeam.name);
-      if (name === null) return;
-      const abbr = prompt("Team Abbreviation (2-3 chars, unique):", activeTeam.abbr);
-      if (abbr === null) return;
-
-      // Validate Abbr Uniqueness
-      const isUnique = !teams.some(t => t.id !== activeTeam.id && t.abbr === abbr.toUpperCase());
-      if (!isUnique) {
-          alert("Abbreviation must be unique.");
-          return;
-      }
-
+  const handleSaveTeamDetails = (newName, newAbbr) => {
+      if (isLocked) return;
       const updated = teams.map(t => 
           t.id === activeTeam.id 
-          ? { ...t, name: name || t.name, abbr: abbr ? abbr.toUpperCase().substring(0,3) : t.abbr } 
+          ? { ...t, name: newName, abbr: newAbbr } 
           : t
       );
       updateTeams(updated);
+      setShowEditTeamModal(false);
   };
 
   const handleDeleteTeam = (id) => {
+      if (isLocked) return;
       if (!confirm("Remove this team?")) return;
       const updated = teams.filter(t => t.id !== id);
       updateTeams(updated);
@@ -324,6 +392,7 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
   };
 
   const handleCSVImport = (e) => {
+    if (isLocked) return;
     const file = e.target.files[0];
     if (!file) return;
 
@@ -397,20 +466,50 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
   if (!activeTeam) return <div className="p-10 text-center">No teams found.</div>;
 
   return (
-    <div className="h-[650px] flex flex-col space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+    <div className="h-full flex flex-col animate-in fade-in slide-in-from-right-8 duration-500 relative">
         
-        {/* Standard Page Header */}
-        <PageHeader 
-            title="Event Participants" 
-            description="Manage the host roster and guest teams for this specific event." 
-        />
+        {/* LOCK BANNER */}
+        {isLocked && (
+            <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center rounded-xl">
+                <div className="bg-slate-900 border border-yellow-500/50 rounded-xl p-8 max-w-md text-center shadow-2xl">
+                    <div className="mx-auto w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center mb-4">
+                        <Lock size={24} className="text-yellow-500" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Rosters Locked</h3>
+                    <p className="text-slate-400 text-sm mb-6">
+                        Matchmaking has already been run. To modify teams or add wrestlers, please go to Step 4 and remove them, or reset the matches entirely.
+                    </p>
+                    <div className="text-xs text-yellow-500/70 border-t border-slate-800 pt-4">
+                        Modifications are disabled to prevent data corruption.
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Standard Page Header - Reduced padding to save space */}
+        <div className="mb-2 shrink-0">
+            <PageHeader 
+                title="Event Participants" 
+                description="Manage the host roster and guest teams for this specific event." 
+            />
+        </div>
+
+        {/* --- MODAL --- */}
+        {showEditTeamModal && (
+            <EditTeamModal 
+                team={activeTeam}
+                allTeams={teams}
+                onClose={() => setShowEditTeamModal(false)}
+                onSave={handleSaveTeamDetails}
+            />
+        )}
 
         {/* --- SPLIT VIEW --- */}
         <div className="flex gap-4 h-full min-h-0">
             
             {/* LEFT: Team List Sidebar */}
             <div className="w-72 shrink-0 flex flex-col bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-sm h-full">
-                <div className="p-4 border-b border-slate-800 bg-slate-900">
+                <div className="p-3 border-b border-slate-800 bg-slate-900 shrink-0">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                         <Users size={14} /> Participating Teams
                     </h3>
@@ -462,7 +561,8 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
                     
                     <button 
                         onClick={handleAddTeam}
-                        className="w-full flex items-center justify-center p-3 rounded-lg border border-dashed border-slate-700 text-slate-500 hover:text-white hover:border-slate-500 hover:bg-slate-800 transition-all mt-2 text-sm font-medium"
+                        disabled={isLocked}
+                        className="w-full flex items-center justify-center p-3 rounded-lg border border-dashed border-slate-700 text-slate-500 hover:text-white hover:border-slate-500 hover:bg-slate-800 transition-all mt-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Plus size={16} className="mr-2" /> Add Guest Team
                     </button>
@@ -482,41 +582,42 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
                     />
                 ) : (
                     /* MODE 2: STANDARD EDITOR VIEW */
-                    <div className="flex flex-col h-full">
-                        <div className="p-6 border-b border-slate-800 flex justify-between items-start bg-slate-900 shrink-0">
+                    <div className="flex flex-col h-full overflow-hidden">
+                        <div className="p-4 border-b border-slate-800 flex justify-between items-start bg-slate-900 shrink-0">
                             <div>
-                                <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-3">
+                                <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-3">
                                     {activeTeam.name}
-                                    <span className="text-sm font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">{activeTeam.abbr}</span>
+                                    <span className="text-xs font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">{activeTeam.abbr}</span>
                                     <button 
-                                        onClick={handleEditTeamDetails}
-                                        className="text-slate-600 hover:text-blue-400 transition-colors"
+                                        onClick={() => setShowEditTeamModal(true)}
+                                        className="text-slate-600 hover:text-blue-400 transition-colors p-1 hover:bg-slate-800 rounded"
                                         title="Edit Team Details"
+                                        disabled={isLocked}
                                     >
-                                        <Info size={16}/>
+                                        <Edit2 size={14}/>
                                     </button>
                                 </h2>
-                                <div className="flex items-center gap-4 text-sm mt-2">
+                                <div className="flex items-center gap-4 text-xs mt-1">
                                     <span className="flex items-center gap-1.5 text-slate-400">
-                                        <Users size={14}/> 
+                                        <Users size={12}/> 
                                         <strong className="text-slate-200">{activeTeam.roster?.length || 0}</strong> Total
                                     </span>
                                     
                                     {/* Status Badge in Header */}
                                     {getTeamStatus(activeTeam) === 'error' && (
                                         <span className="flex items-center gap-1.5 text-red-400 bg-red-950/30 px-2 py-0.5 rounded border border-red-900/50">
-                                            <ShieldAlert size={14}/> 
+                                            <ShieldAlert size={12}/> 
                                             <strong>{getTeamIssueCount(activeTeam.roster)}</strong> Issues
                                         </span>
                                     )}
                                     {getTeamStatus(activeTeam) === 'ready' && (
                                         <span className="flex items-center gap-1.5 text-green-400 bg-green-950/30 px-2 py-0.5 rounded border border-green-900/50">
-                                            <CheckCircle2 size={14}/> Roster Ready
+                                            <CheckCircle2 size={12}/> Roster Ready
                                         </span>
                                     )}
                                     {getTeamStatus(activeTeam) === 'empty' && (
                                         <span className="flex items-center gap-1.5 text-yellow-400 bg-yellow-950/30 px-2 py-0.5 rounded border border-yellow-900/50">
-                                            <AlertCircle size={14}/> Roster Empty
+                                            <AlertCircle size={12}/> Roster Empty
                                         </span>
                                     )}
                                 </div>
@@ -524,14 +625,14 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
                             
                             <div className="flex gap-2">
                                 {!activeTeam.isHost && (
-                                    <Button onClick={() => handleDeleteTeam(activeTeam.id)} variant="ghost" className="text-red-400 hover:bg-red-950/50 border border-transparent hover:border-red-900/50">
-                                        <Trash2 size={18} className="mr-2"/> Remove Team
+                                    <Button onClick={() => handleDeleteTeam(activeTeam.id)} disabled={isLocked} variant="ghost" className="text-red-400 hover:bg-red-950/50 border border-transparent hover:border-red-900/50 h-8 text-xs disabled:opacity-50">
+                                        <Trash2 size={14} className="mr-1"/> Remove
                                     </Button>
                                 )}
                             </div>
                         </div>
 
-                        <div className="flex-1 min-h-0 p-4 flex flex-col bg-slate-950/30 overflow-hidden">
+                        <div className="flex-1 min-h-0 bg-slate-950/30 flex flex-col overflow-hidden relative">
                             {activeTeam.roster.length === 0 ? (
                                 <div className="flex-1 flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-800 rounded-xl m-4 bg-slate-900/50">
                                     <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4">
@@ -543,26 +644,31 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
                                     <div className="flex flex-row gap-3 w-full max-w-md justify-center">
                                         {/* HOST ONLY: Import from Master */}
                                         {activeTeam.isHost && (
-                                            <Button onClick={() => setViewMode('checkin')} icon={Database} className="flex-1 justify-center">
+                                            <Button onClick={() => setViewMode('checkin')} disabled={isLocked} icon={Database} className="flex-1 justify-center">
                                                 Import from Master
                                             </Button>
                                         )}
                                         
                                         {/* ALL TEAMS: Import CSV */}
-                                        <label className={`flex-1 flex items-center justify-center px-4 py-2 rounded-lg font-bold transition-all cursor-pointer ${activeTeam.isHost ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-blue-600 text-white hover:bg-blue-500'}`}>
+                                        <label className={`flex-1 flex items-center justify-center px-4 py-2 rounded-lg font-bold transition-all cursor-pointer ${isLocked ? 'opacity-50 cursor-not-allowed bg-slate-800 text-slate-500' : (activeTeam.isHost ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-blue-600 text-white hover:bg-blue-500')}`}>
                                             <Upload size={18} className="mr-2" />
                                             Import from CSV
                                             <input 
                                                 type="file" 
                                                 accept=".csv" 
                                                 className="hidden" 
+                                                disabled={isLocked}
                                                 onChange={handleCSVImport}
                                             />
                                         </label>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                                <div className="flex-1 min-h-0 h-full flex flex-col">
+                                    {/* We pass a disabled state to RosterEditor implicitly by blocking edits at this level, 
+                                        but RosterEditor itself handles its own internal state. 
+                                        Since `handleUpdateRoster` is defined here, we can block updates in that function if needed,
+                                        but the overlay handles UI blocking. */}
                                     <RosterEditor 
                                         roster={activeTeam.roster} 
                                         teamName={activeTeam.name}
@@ -572,14 +678,9 @@ const Step2_RosterManager = ({ event, masterRoster, hostName, onUpdateEvent }) =
                                 </div>
                             )}
                             
-                            {/* FIX: Always render RosterEditor if roster is empty? 
-                                The user said "container holding the team roster is small not scrollable".
-                                This suggests when data exists, it doesn't scroll.
-                                The fix above adds `flex-1 min-h-0 overflow-hidden` to the wrapper div.
-                                AND `h-full` to the parent container.
-                            */}
+                            {/* Force render RosterEditor even when empty to allow manual adds if needed, via conditional override if logic changes */}
                             {activeTeam.roster.length === 0 && (
-                                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                                 <div className="flex-1 min-h-0 h-full flex flex-col hidden">
                                     <RosterEditor 
                                         roster={[]} 
                                         teamName={activeTeam.name}

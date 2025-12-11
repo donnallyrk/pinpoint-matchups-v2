@@ -371,226 +371,229 @@ const RosterEditor = ({ roster = [], teamName = "Team", onChange, onImportFromMa
   };
 
   return (
-    <div className="space-y-4 flex-1 flex flex-col min-h-0 overflow-hidden">
-      {/* --- INSTRUCTIONS PANEL --- */}
-      {showHelp && (
-        <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 animate-in fade-in slide-in-from-top-2 shrink-0">
-          <div className="flex justify-between items-start mb-2">
-            <h4 className="font-bold text-blue-400 flex items-center gap-2">
-              <Info size={16} /> Import Instructions
-            </h4>
-            <button onClick={() => setShowHelp(false)} className="text-slate-400 hover:text-white"><X size={16}/></button>
-          </div>
-          <div className="text-sm text-slate-300 space-y-1">
-            <p>1. Download the <strong>CSV Template</strong>.</p>
-            <p>2. Fill in the wrestler data.</p>
-            <p>3. Save the updated CSV file.</p>
-            <p>4. Import the CSV file.</p>
-            <div className="mt-3 pt-2 border-t border-slate-700/50">
-                <p className="font-semibold text-slate-400 mb-1">Required Roster Attributes:</p>
-                <ul className="list-disc list-inside text-xs space-y-0.5 ml-1 text-slate-400">
-                    <li>First Name (Text)</li>
-                    <li>Last Name (Text)</li>
-                    <li>Division (Text)</li>
-                    <li>Date of Birth (MM/DD/YYYY or YYYY-MM-DD)</li>
-                    <li>Weight (##.#)</li>
-                    <li>Rating (0-5)</li>
-                    <li>Gender (M / F)</li>
-                </ul>
-                <p className="text-xs text-yellow-500 mt-2 flex items-center gap-1">
-                    <AlertTriangle size={12} />
-                    All fields are required. Incomplete records will be flagged red.
-                </p>
+    <div className="h-full flex flex-col bg-slate-900 border border-slate-700 rounded-lg overflow-y-auto relative">
+      {/* UNIFIED SCROLL CONTAINER
+          The Toolbar and Table are now flow content in this single scrollable div.
+          The sticky header (-top-1) ensures columns are visible after toolbar scrolls away.
+      */}
+
+      <div className="p-4 space-y-4">
+        {/* --- INSTRUCTIONS PANEL --- */}
+        {showHelp && (
+            <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 animate-in fade-in slide-in-from-top-2">
+            <div className="flex justify-between items-start mb-2">
+                <h4 className="font-bold text-blue-400 flex items-center gap-2">
+                <Info size={16} /> Import Instructions
+                </h4>
+                <button onClick={() => setShowHelp(false)} className="text-slate-400 hover:text-white"><X size={16}/></button>
             </div>
-          </div>
-        </div>
-      )}
+            <div className="text-sm text-slate-300 space-y-1">
+                <p>1. Download the <strong>CSV Template</strong>.</p>
+                <p>2. Fill in the wrestler data.</p>
+                <p>3. Save the updated CSV file.</p>
+                <p>4. Import the CSV file.</p>
+                <div className="mt-3 pt-2 border-t border-slate-700/50">
+                    <p className="font-semibold text-slate-400 mb-1">Required Roster Attributes:</p>
+                    <ul className="list-disc list-inside text-xs space-y-0.5 ml-1 text-slate-400">
+                        <li>First Name (Text)</li>
+                        <li>Last Name (Text)</li>
+                        <li>Division (Text)</li>
+                        <li>Date of Birth (MM/DD/YYYY or YYYY-MM-DD)</li>
+                        <li>Weight (##.#)</li>
+                        <li>Rating (0-5)</li>
+                        <li>Gender (M / F)</li>
+                    </ul>
+                    <p className="text-xs text-yellow-500 mt-2 flex items-center gap-1">
+                        <AlertTriangle size={12} />
+                        All fields are required. Incomplete records will be flagged red.
+                    </p>
+                </div>
+            </div>
+            </div>
+        )}
 
-      {/* --- TOOLBAR ROW 1: INTERACT --- */}
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-            <input 
-                type="text" 
-                placeholder="Search wrestlers..." 
-                value={filter}
-                onChange={e => setFilter(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-        </div>
-      </div>
-
-      {/* --- TOOLBAR ROW 2: POPULATE --- */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-800 shrink-0">
-        
-        {/* Primary Action */}
+        {/* --- TOOLBAR ROW 1: SEARCH --- */}
         <div className="flex items-center gap-3">
-            <Button onClick={() => openModal()} icon={Plus} title="Manually create a single wrestler profile">Add Wrestler</Button>
-            
-            {onImportFromMaster && (
-                <Button 
-                    variant="secondary" 
-                    onClick={onImportFromMaster} 
-                    className="border border-slate-700 text-slate-300"
-                    title="Import wrestlers from your team's master roster"
-                >
-                    <Database size={16} className="mr-2" /> From Master
-                </Button>
-            )}
+            <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                <input 
+                    type="text" 
+                    placeholder="Search wrestlers..." 
+                    value={filter}
+                    onChange={e => setFilter(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+            </div>
         </div>
 
-        {/* Secondary Actions / Utilities */}
-        <div className="flex items-center gap-2">
-            <Button 
-                onClick={handleBulkSetDivision} 
-                variant="ghost" 
-                className="border border-slate-800 bg-slate-900/50 text-yellow-500 hover:text-yellow-400 hover:bg-slate-800"
-                title="Automatically populate the 'Division' field for any wrestler missing this information. Useful after bulk imports."
-            >
-                <Wand2 size={16} className="mr-2" /> Fill Missing Divs
-            </Button>
+        {/* --- TOOLBAR ROW 2: ACTIONS --- */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-800">
+            
+            {/* Primary Action */}
+            <div className="flex items-center gap-3">
+                <Button onClick={() => openModal()} icon={Plus} title="Manually create a single wrestler profile">Add Wrestler</Button>
+                
+                {onImportFromMaster && (
+                    <Button 
+                        variant="secondary" 
+                        onClick={onImportFromMaster} 
+                        className="border border-slate-700 text-slate-300"
+                        title="Import wrestlers from your team's master roster"
+                    >
+                        <Database size={16} className="mr-2" /> From Master
+                    </Button>
+                )}
+            </div>
 
-            <div className="h-6 w-px bg-slate-800 mx-1"></div>
+            {/* Secondary Actions / Utilities */}
+            <div className="flex items-center gap-2">
+                <Button 
+                    onClick={handleBulkSetDivision} 
+                    variant="ghost" 
+                    className="border border-slate-800 bg-slate-900/50 text-yellow-500 hover:text-yellow-400 hover:bg-slate-800"
+                    title="Automatically populate the 'Division' field for any wrestler missing this information. Useful after bulk imports."
+                >
+                    <Wand2 size={16} className="mr-2" /> Fill Missing Divs
+                </Button>
 
-            <div className="flex items-center gap-1">
-                <Button variant="ghost" onClick={() => setShowHelp(!showHelp)} className="px-3 text-slate-500 hover:text-white" title="View instructions for importing data">
-                    <Info size={18} />
-                </Button>
-                <Button variant="ghost" onClick={handleDownloadTemplate} className="px-3 text-slate-500 hover:text-white" title="Download a blank CSV template for data entry">
-                    <FileDown size={18} />
-                </Button>
-                <label className="cursor-pointer text-slate-500 hover:text-blue-400 p-2 rounded-lg transition-colors" title="Upload a populated CSV file to add multiple wrestlers at once">
-                    <Upload size={18} />
-                    <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
-                </label>
-                <Button variant="ghost" onClick={handleExport} className="px-3 text-slate-500 hover:text-white" title="Export current roster data to a CSV file">
-                    <Download size={18} />
-                </Button>
+                <div className="h-6 w-px bg-slate-800 mx-1"></div>
+
+                <div className="flex items-center gap-1">
+                    <Button variant="ghost" onClick={() => setShowHelp(!showHelp)} className="px-3 text-slate-500 hover:text-white" title="View instructions for importing data">
+                        <Info size={18} />
+                    </Button>
+                    <Button variant="ghost" onClick={handleDownloadTemplate} className="px-3 text-slate-500 hover:text-white" title="Download a blank CSV template for data entry">
+                        <FileDown size={18} />
+                    </Button>
+                    <label className="cursor-pointer text-slate-500 hover:text-blue-400 p-2 rounded-lg transition-colors" title="Upload a populated CSV file to add multiple wrestlers at once">
+                        <Upload size={18} />
+                        <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+                    </label>
+                    <Button variant="ghost" onClick={handleExport} className="px-3 text-slate-500 hover:text-white" title="Export current roster data to a CSV file">
+                        <Download size={18} />
+                    </Button>
+                </div>
             </div>
         </div>
       </div>
 
       {/* --- TABLE --- */}
-      <div className="flex-1 bg-slate-900 rounded-lg border border-slate-700 overflow-hidden flex flex-col min-h-0 relative">
-        <div className="absolute inset-0 overflow-auto">
-          <table className="w-full text-left text-sm text-slate-300">
-            <thead className="bg-slate-800 text-slate-400 uppercase font-medium sticky top-0 z-10 shadow-sm">
-              <tr>
-                {[
-                  { k: 'status', l: 'Status', w: 'w-10 text-center', tip: 'Overall Validity Status' },
-                  { k: 'firstName', l: 'First Name', tip: 'Required Text' },
-                  { k: 'lastName', l: 'Last Name', tip: 'Required Text' },
-                  { k: 'division', l: 'Division', tip: 'Required (e.g. Varsity, JV). Use "Fill Missing Divs" button to auto-populate empty fields.' },
-                  { k: 'dob', l: 'DOB', tip: 'Required (YYYY-MM-DD)' },
-                  { k: 'weight', l: 'Weight', tip: 'Required (> 0.0)' },
-                  { k: 'rating', l: 'Rating', tip: 'Required (0 - 5)' },
-                  { k: 'gender', l: 'Gender', tip: 'Required (M or F)' },
-                  { k: 'actions', l: '', tip: 'Actions' }
-                ].map(col => (
-                  <th 
-                    key={col.k} 
-                    title={col.tip}
-                    className={`px-6 py-3 cursor-pointer hover:text-white bg-slate-800 ${col.w || ''}`}
-                    onClick={() => col.k !== 'actions' && handleSort(col.k)}
-                  >
-                    <div className={`flex items-center gap-1 ${col.k === 'status' ? 'justify-center' : ''}`}>
-                      {col.l}
-                      {col.k !== 'actions' && <ArrowUpDown size={12} className={sortConfig.key === col.k ? 'text-blue-400' : 'opacity-30'} />}
+      <table className="w-full text-left text-sm text-slate-300">
+        <thead className="bg-slate-800 text-slate-400 uppercase font-medium sticky -top-1 z-20 shadow-sm ring-1 ring-slate-800">
+            <tr>
+            {[
+                { k: 'status', l: 'Status', w: 'w-10 text-center', tip: 'Overall Validity Status' },
+                { k: 'firstName', l: 'First Name', tip: 'Required Text' },
+                { k: 'lastName', l: 'Last Name', tip: 'Required Text' },
+                { k: 'division', l: 'Division', tip: 'Required (e.g. Varsity, JV). Use "Fill Missing Divs" button to auto-populate empty fields.' },
+                { k: 'dob', l: 'DOB', tip: 'Required (YYYY-MM-DD)' },
+                { k: 'weight', l: 'Weight', tip: 'Required (> 0.0)' },
+                { k: 'rating', l: 'Rating', tip: 'Required (0 - 5)' },
+                { k: 'gender', l: 'Gender', tip: 'Required (M or F)' },
+                { k: 'actions', l: '', tip: 'Actions' }
+            ].map(col => (
+                <th 
+                key={col.k} 
+                title={col.tip}
+                className={`px-6 py-3 cursor-pointer hover:text-white bg-slate-800 ${col.w || ''}`}
+                onClick={() => col.k !== 'actions' && handleSort(col.k)}
+                >
+                <div className={`flex items-center gap-1 ${col.k === 'status' ? 'justify-center' : ''}`}>
+                    {col.l}
+                    {col.k !== 'actions' && <ArrowUpDown size={12} className={sortConfig.key === col.k ? 'text-blue-400' : 'opacity-30'} />}
+                </div>
+                </th>
+            ))}
+            </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-800">
+            {processedRoster.length === 0 ? (
+            <tr><td colSpan="9" className="px-6 py-12 text-center text-slate-500">No wrestlers found.</td></tr>
+            ) : processedRoster.map(player => {
+            // Validation Checks - Use centralized logic
+            const issues = getPlayerValidationIssues(player);
+            const complete = issues.length === 0;
+            
+            return (
+                <tr key={player.id} className="hover:bg-slate-800/50 transition-colors group bg-slate-900">
+                {/* Status */}
+                <td className="px-6 py-3 text-center">
+                    {complete ? (
+                    <div className="flex justify-center"><Check size={16} className="text-green-500" /></div>
+                    ) : (
+                    <div className="flex justify-center cursor-help" title={issues.join(', ')}>
+                        <AlertTriangle size={16} className="text-yellow-500" />
                     </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {processedRoster.length === 0 ? (
-                <tr><td colSpan="9" className="px-6 py-12 text-center text-slate-500">No wrestlers found.</td></tr>
-              ) : processedRoster.map(player => {
-                // Validation Checks - Use centralized logic
-                const issues = getPlayerValidationIssues(player);
-                const complete = issues.length === 0;
-                
-                return (
-                  <tr key={player.id} className="hover:bg-slate-800/50 transition-colors group">
-                    {/* Status */}
-                    <td className="px-6 py-3 text-center">
-                      {complete ? (
-                        <div className="flex justify-center"><Check size={16} className="text-green-500" /></div>
-                      ) : (
-                        <div className="flex justify-center cursor-help" title={issues.join(', ')}>
-                           <AlertTriangle size={16} className="text-yellow-500" />
-                        </div>
-                      )}
-                    </td>
+                    )}
+                </td>
 
-                    {/* EDITABLE CELLS */}
-                    {[
-                        { k: 'firstName', val: player.firstName, type: 'text' },
-                        { k: 'lastName', val: player.lastName, type: 'text' },
-                        { k: 'division', val: player.division || '', type: 'text' },
-                        { k: 'dob', val: player.dob || '', type: 'date' },
-                        { k: 'weight', val: player.weight, type: 'text' },
-                        { k: 'rating', val: player.rating, type: 'number' },
-                        { k: 'gender', val: player.gender, type: 'select', opts: ['M', 'F'] }
-                    ].map(cell => {
-                        const isEditing = editingCell?.id === player.id && editingCell?.field === cell.k;
-                        const isInvalid = isRowInvalid(player, cell.k);
-                        const errorClass = isInvalid ? 'border border-red-500 bg-red-500/10 text-red-300' : '';
+                {/* EDITABLE CELLS */}
+                {[
+                    { k: 'firstName', val: player.firstName, type: 'text' },
+                    { k: 'lastName', val: player.lastName, type: 'text' },
+                    { k: 'division', val: player.division || '', type: 'text' },
+                    { k: 'dob', val: player.dob || '', type: 'date' },
+                    { k: 'weight', val: player.weight, type: 'text' },
+                    { k: 'rating', val: player.rating, type: 'number' },
+                    { k: 'gender', val: player.gender, type: 'select', opts: ['M', 'F'] }
+                ].map(cell => {
+                    const isEditing = editingCell?.id === player.id && editingCell?.field === cell.k;
+                    const isInvalid = isRowInvalid(player, cell.k);
+                    const errorClass = isInvalid ? 'border border-red-500 bg-red-500/10 text-red-300' : '';
 
-                        return (
-                            <td 
-                                key={cell.k}
-                                onClick={() => setEditingCell({ id: player.id, field: cell.k })}
-                                className={`px-6 py-3 cursor-pointer relative ${errorClass}`}
-                            >
-                                {isEditing ? (
-                                    cell.type === 'select' ? (
-                                        <select 
-                                            autoFocus
-                                            className="bg-slate-950 text-white w-full border border-blue-500 rounded px-1 py-0.5 outline-none"
-                                            value={['M','F'].includes(cell.val) ? cell.val : ''}
-                                            onChange={(e) => handleInlineSave(player.id, cell.k, e.target.value)}
-                                            onBlur={() => setEditingCell(null)}
-                                        >
-                                            <option value="" disabled>Select</option>
-                                            {cell.opts.map(o => <option key={o} value={o}>{o}</option>)}
-                                        </select>
-                                    ) : (
-                                        <input 
-                                            autoFocus
-                                            type={cell.type === 'date' && !isValidIsoDate(cell.val) ? 'text' : cell.type} 
-                                            className="bg-slate-950 text-white w-full border border-blue-500 rounded px-1 py-0.5 outline-none"
-                                            defaultValue={cell.val}
-                                            onKeyDown={(e) => {
-                                                if(e.key === 'Enter') handleInlineSave(player.id, cell.k, e.target.value);
-                                                if(e.key === 'Escape') setEditingCell(null);
-                                            }}
-                                            onBlur={(e) => handleInlineSave(player.id, cell.k, e.target.value)}
-                                        />
-                                    )
+                    return (
+                        <td 
+                            key={cell.k}
+                            onClick={() => setEditingCell({ id: player.id, field: cell.k })}
+                            className={`px-6 py-3 cursor-pointer relative ${errorClass}`}
+                        >
+                            {isEditing ? (
+                                cell.type === 'select' ? (
+                                    <select 
+                                        autoFocus
+                                        className="bg-slate-950 text-white w-full border border-blue-500 rounded px-1 py-0.5 outline-none"
+                                        value={['M','F'].includes(cell.val) ? cell.val : ''}
+                                        onChange={(e) => handleInlineSave(player.id, cell.k, e.target.value)}
+                                        onBlur={() => setEditingCell(null)}
+                                    >
+                                        <option value="" disabled>Select</option>
+                                        {cell.opts.map(o => <option key={o} value={o}>{o}</option>)}
+                                    </select>
                                 ) : (
-                                    <>
-                                        {cell.val === '' && isInvalid ? <span className="text-red-500 italic">Required</span> : cell.val}
-                                        {isInvalid && <span className="absolute top-1 right-1 flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span></span>}
-                                    </>
-                                )}
-                            </td>
-                        );
-                    })}
+                                    <input 
+                                        autoFocus
+                                        type={cell.type === 'date' && !isValidIsoDate(cell.val) ? 'text' : cell.type} 
+                                        className="bg-slate-950 text-white w-full border border-blue-500 rounded px-1 py-0.5 outline-none"
+                                        defaultValue={cell.val}
+                                        onKeyDown={(e) => {
+                                            if(e.key === 'Enter') handleInlineSave(player.id, cell.k, e.target.value);
+                                            if(e.key === 'Escape') setEditingCell(null);
+                                        }}
+                                        onBlur={(e) => handleInlineSave(player.id, cell.k, e.target.value)}
+                                    />
+                                )
+                            ) : (
+                                <>
+                                    {cell.val === '' && isInvalid ? <span className="text-red-500 italic">Required</span> : cell.val}
+                                    {isInvalid && <span className="absolute top-1 right-1 flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span></span>}
+                                </>
+                            )}
+                        </td>
+                    );
+                })}
 
-                    {/* Actions */}
-                    <td className="px-6 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => { e.stopPropagation(); openModal(player); }} className="p-1 hover:text-blue-400" title="Full Edit"><Edit2 size={16} /></button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(player.id); }} className="p-1 hover:text-red-400" title="Delete"><Trash2 size={16} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                {/* Actions */}
+                <td className="px-6 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => { e.stopPropagation(); openModal(player); }} className="p-1 hover:text-blue-400" title="Full Edit"><Edit2 size={16} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(player.id); }} className="p-1 hover:text-red-400" title="Delete"><Trash2 size={16} /></button>
+                    </div>
+                </td>
+                </tr>
+            );
+            })}
+        </tbody>
+      </table>
 
       {/* --- ADD/EDIT MODAL --- */}
       {showModal && (

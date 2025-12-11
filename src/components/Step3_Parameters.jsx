@@ -8,7 +8,9 @@ import {
   Scale,
   Zap,
   Swords,
-  Info
+  Info,
+  Minus, // Added
+  Plus   // Added
 } from 'lucide-react';
 import { Card } from '../utils';
 import PageHeader from './PageHeader';
@@ -28,28 +30,61 @@ const Tooltip = ({ text }) => {
   );
 };
 
-const NumberControl = ({ label, value, onChange, min, max, step = 1, unit = '', tooltip }) => (
-  <div className="flex justify-between items-center bg-slate-950 p-3 rounded-lg border border-slate-800">
-    <div className="flex items-center">
-        <span className="text-sm text-slate-300 font-medium whitespace-nowrap">{label}</span>
-        <Tooltip text={tooltip} />
-    </div>
-    <div className="flex items-center gap-3 shrink-0">
-      <input 
-        type="range" 
-        min={min} 
-        max={max} 
-        step={step}
-        value={value} 
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-24 accent-blue-500 cursor-pointer"
-      />
-      <div className="w-20 text-right font-mono text-white font-bold bg-slate-800 px-2 py-1 rounded whitespace-nowrap">
-        {value}{unit}
+const NumberControl = ({ label, value, onChange, min, max, step = 1, unit = '', tooltip }) => {
+  const handleStep = (direction) => {
+    const delta = direction === 'up' ? step : -step;
+    const nextVal = value + delta;
+    
+    // Clamp and fix floating point precision
+    if (nextVal >= min && nextVal <= max) {
+      // Handle decimals nicely (e.g. 3 + 0.5 = 3.5, not 3.500000000004)
+      onChange(Math.round(nextVal * 100) / 100);
+    }
+  };
+
+  return (
+    <div className="flex justify-between items-center bg-slate-950 p-3 rounded-lg border border-slate-800">
+      <div className="flex items-center">
+          <span className="text-sm text-slate-300 font-medium whitespace-nowrap">{label}</span>
+          <Tooltip text={tooltip} />
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Decrement Button */}
+        <button 
+          onClick={() => handleStep('down')}
+          disabled={value <= min}
+          className="p-1.5 rounded-md hover:bg-slate-800 text-slate-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <Minus size={14} />
+        </button>
+
+        <input 
+          type="range" 
+          min={min} 
+          max={max} 
+          step={step}
+          value={value} 
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          className="w-20 accent-blue-500 cursor-pointer"
+        />
+
+        {/* Increment Button */}
+        <button 
+          onClick={() => handleStep('up')}
+          disabled={value >= max}
+          className="p-1.5 rounded-md hover:bg-slate-800 text-slate-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <Plus size={14} />
+        </button>
+
+        {/* Display */}
+        <div className="w-16 text-right font-mono text-white font-bold bg-slate-800 px-2 py-1 rounded whitespace-nowrap text-sm">
+          {value}{unit}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ToggleControl = ({ label, description, checked, onChange, tooltip }) => (
   <div className="flex justify-between items-start bg-slate-950 p-3 rounded-lg border border-slate-800 cursor-pointer" onClick={() => onChange(!checked)}>
