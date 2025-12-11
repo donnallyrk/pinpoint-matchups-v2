@@ -14,11 +14,14 @@ import {
   Check,
   XCircle,
   ArrowUpDown,
-  Search
+  Search,
+  Play,
+  RotateCcw,
+  UserPlus // Added Icon
 } from 'lucide-react';
 import { Button } from '../utils';
 import PageHeader from './PageHeader';
-import { getPlayerValidationIssues } from '../models';
+import { getPlayerValidationIssues, createPlayer } from '../models'; // Added createPlayer
 
 // --- HELPERS ---
 
@@ -301,6 +304,7 @@ const WrestlerHeader = ({ wrestler }) => (
             <div className="flex flex-col items-end"><span className="text-slate-500 uppercase text-[10px]">Age</span><span className="font-bold">{wrestler.age}</span></div>
             <div className="flex flex-col items-end"><span className="text-slate-500 uppercase text-[10px]">Weight</span><span className="font-bold">{wrestler.weight}</span></div>
             <div className="flex flex-col items-end"><span className="text-slate-500 uppercase text-[10px]">Rating</span><span className="font-bold">{wrestler.rating}</span></div>
+            <div className="flex flex-col items-end"><span className="text-slate-500 uppercase text-[10px]">Gender</span><span className="font-bold">{wrestler.gender}</span></div>
         </div>
     </div>
 );
@@ -351,6 +355,113 @@ const WrestlerInfoPopup = ({ wrestler, onClose, onRemove }) => (
         </div>
     </div>
 );
+
+const AddWrestlerModal = ({ teams, onClose, onAdd }) => {
+    const [formData, setFormData] = useState({
+        firstName: '',
+        lastName: '',
+        teamId: teams[0]?.id || '',
+        division: '',
+        weight: '',
+        rating: '',
+        dob: '',
+        gender: 'M'
+    });
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if(!formData.firstName || !formData.lastName || !formData.teamId) return;
+        
+        onAdd({
+            ...formData,
+            weight: parseFloat(formData.weight),
+            rating: parseFloat(formData.rating)
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[150] p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl">
+                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        <UserPlus size={20} className="text-green-400"/> Add Wrestler to Event
+                    </h3>
+                    <button onClick={onClose}><X size={20} className="text-slate-500 hover:text-white"/></button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1">First Name</label>
+                            <input required className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
+                                value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1">Last Name</label>
+                            <input required className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
+                                value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 mb-1">Team</label>
+                        <select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
+                            value={formData.teamId} onChange={e => setFormData({...formData, teamId: e.target.value})}
+                        >
+                            {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1">Division</label>
+                            <input required className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
+                                value={formData.division} onChange={e => setFormData({...formData, division: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1">DOB</label>
+                            <input type="date" required className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
+                                value={formData.dob} onChange={e => setFormData({...formData, dob: e.target.value})}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1">Weight</label>
+                            <input type="number" step="0.1" required className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
+                                value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1">Rating (0-5)</label>
+                            <input type="number" min="0" max="5" step="0.1" required className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
+                                value={formData.rating} onChange={e => setFormData({...formData, rating: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1">Gender</label>
+                            <select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
+                                value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}
+                            >
+                                <option value="M">Male</option>
+                                <option value="F">Female</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="pt-4 flex justify-end gap-3 border-t border-slate-800">
+                        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                        <Button type="submit">Add Wrestler</Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
 
 const ViewMatchesModal = ({ wrestler, matches, onClose, onRemoveMatch }) => {
     const [sortConfig, setSortConfig] = useState({ key: 'score', direction: 'desc' });
@@ -508,17 +619,15 @@ const AddMatchModal = ({ wrestler, allWrestlers, currentMatches, matchRules, onC
         baseList.sort((a, b) => {
             // Special Case: Status (Qualified boolean)
             if (sortConfig.key === 'status') {
-                if (a.qualified === b.qualified) return b.score - a.score; // Tie-break with score
-                // If Descending: True first (1 - 0 = 1). If Ascending: False first.
-                return sortConfig.direction === 'desc' 
-                    ? (a.qualified ? 1 : 0) - (b.qualified ? 1 : 0) // Should result in True > False, so b - a for desc usually, but let's be explicit
-                    : (a.qualified ? 1 : 0) - (b.qualified ? 1 : 0) * -1;
+                const aVal = a.qualified ? 1 : 0;
+                const bVal = b.qualified ? 1 : 0;
                 
-                // Let's simplify: Descending means True (1) comes first? 
-                // b - a: if b=1, a=0 -> 1 (b comes first). Correct.
-                return sortConfig.direction === 'desc' 
-                    ? (b.qualified ? 1 : 0) - (a.qualified ? 1 : 0)
-                    : (a.qualified ? 1 : 0) - (b.qualified ? 1 : 0);
+                if (aVal !== bVal) {
+                    return sortConfig.direction === 'desc' ? bVal - aVal : aVal - bVal;
+                }
+                
+                // Secondary sort by score (Highest first) if status is same
+                return b.score - a.score;
             }
 
             let valA = a[sortConfig.key];
@@ -569,11 +678,16 @@ const AddMatchModal = ({ wrestler, allWrestlers, currentMatches, matchRules, onC
                     <div className="relative">
                         <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
                         <input 
-                            className="w-full bg-slate-950 border border-slate-700 rounded py-2 pl-10 pr-4 text-sm text-white outline-none focus:border-blue-500"
+                            className="w-full bg-slate-950 border border-slate-700 rounded py-2 pl-10 pr-8 text-sm text-white outline-none focus:border-blue-500"
                             placeholder="Search opponents..."
                             value={filter}
                             onChange={e => setFilter(e.target.value)}
                         />
+                        {filter && (
+                            <button onClick={() => setFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white p-1">
+                                <X size={14} />
+                            </button>
+                        )}
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-0">
@@ -652,6 +766,7 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
   const [viewingInfoWrestler, setViewingInfoWrestler] = useState(null); // For Info Modal
   const [showViewModal, setShowViewModal] = useState(false); // For View Matches
   const [showAddModal, setShowAddModal] = useState(false); // For Add Match
+  const [showAddWrestlerModal, setShowAddWrestlerModal] = useState(false); // NEW: Add Wrestler Modal
 
   const capacityMetrics = useMemo(() => {
       const { targetCapacity, hardCap } = calculateCapacity(event);
@@ -673,6 +788,13 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
   }, [event.matchups]); 
   
   const handleRun = () => {
+      // Re-run warning
+      if (results && results.matches.length > 0) {
+          if (!confirm("Re-running matchmaking will clear existing matches and reset the process. Are you sure you want to continue?")) {
+              return;
+          }
+      }
+
       setIsRunning(true);
       setTimeout(() => {
           const output = runMatchmaking(event);
@@ -690,18 +812,58 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
 
   const handleRemoveWrestler = (wrestlerId) => {
       if (!confirm("Are you sure? This will remove the wrestler and delete all their matches.")) return;
+      
       const updatedTeams = event.participatingTeams.map(t => ({
           ...t,
           roster: t.roster.filter(w => w.id !== wrestlerId)
       }));
-      const updatedMatches = (event.matchups || []).filter(m => m.w1.id !== wrestlerId && m.w2.id !== wrestlerId);
+      
+      // Filter out matches involving the wrestler
+      const updatedMatches = (results.matches || []).filter(m => m.w1.id !== wrestlerId && m.w2.id !== wrestlerId);
+      
+      // Update Local Results state to reflect immediate removal
+      const updatedWrestlerStats = results.wrestlerStats.filter(w => w.id !== wrestlerId);
+      
+      // Recalculate match counts for remaining wrestlers
+      const newCounts = {};
+      updatedWrestlerStats.forEach(w => newCounts[w.id] = 0);
+      updatedMatches.forEach(m => {
+          if(newCounts[m.w1.id] !== undefined) newCounts[m.w1.id]++;
+          if(newCounts[m.w2.id] !== undefined) newCounts[m.w2.id]++;
+      });
+      const newStats = updatedWrestlerStats.map(w => ({ ...w, matchCount: newCounts[w.id] || 0 }));
+
+      setResults({
+          ...results,
+          matches: updatedMatches,
+          wrestlerStats: newStats,
+          totalWrestlers: results.totalWrestlers - 1
+      });
+
+      // Persist to parent
       onUpdate(event.id, { participatingTeams: updatedTeams, matchups: updatedMatches });
       setViewingInfoWrestler(null);
   };
 
   const handleRemoveMatch = (matchId) => {
       if(!confirm("Delete this match?")) return;
+      
+      // Filter out the match locally
       const newMatches = results.matches.filter(m => m.id !== matchId);
+      
+      // Recalculate match counts
+      const newCounts = {};
+      results.wrestlerStats.forEach(w => newCounts[w.id] = 0);
+      newMatches.forEach(m => {
+          if(newCounts[m.w1.id] !== undefined) newCounts[m.w1.id]++;
+          if(newCounts[m.w2.id] !== undefined) newCounts[m.w2.id]++;
+      });
+      const newStats = results.wrestlerStats.map(w => ({ ...w, matchCount: newCounts[w.id] || 0 }));
+
+      // Update Local State
+      setResults({ ...results, matches: newMatches, wrestlerStats: newStats });
+      
+      // Update Parent
       onUpdate(event.id, { matchups: newMatches });
   };
 
@@ -719,6 +881,56 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
 
       setResults({ ...results, matches: newMatches, wrestlerStats: newStats });
       onUpdate(event.id, { matchups: newMatches });
+  };
+
+  const handleAddNewWrestler = (data) => {
+      // 1. Create the wrestler object using the factory
+      const newWrestler = createPlayer(data.firstName, data.lastName);
+      Object.assign(newWrestler, {
+          division: data.division,
+          weight: data.weight,
+          rating: data.rating,
+          dob: data.dob,
+          gender: data.gender
+      });
+
+      // 2. Add to Event's participatingTeams (Persistence)
+      const targetTeamId = data.teamId;
+      const targetTeam = event.participatingTeams.find(t => t.id === targetTeamId);
+      
+      if (!targetTeam) {
+          alert("Team not found");
+          return;
+      }
+
+      const updatedTeams = event.participatingTeams.map(t => {
+          if (t.id === targetTeamId) {
+              return { ...t, roster: [...(t.roster || []), newWrestler] };
+          }
+          return t;
+      });
+
+      onUpdate(event.id, { participatingTeams: updatedTeams });
+
+      // 3. Add to Local Results (Visual Update without reset)
+      // We need to shape it like a 'stat' object (flattened with team info)
+      const newWrestlerStat = {
+          ...newWrestler,
+          teamId: targetTeam.id,
+          teamName: targetTeam.name,
+          teamAbbr: targetTeam.abbr || targetTeam.name.substring(0,3).toUpperCase(),
+          age: calculateAge(newWrestler.dob),
+          matchCount: 0,
+          potentialMatches: 0 // Will be calculated dynamically in AddMatchModal
+      };
+
+      setResults(prev => ({
+          ...prev,
+          wrestlerStats: [...prev.wrestlerStats, newWrestlerStat],
+          totalWrestlers: prev.totalWrestlers + 1
+      }));
+
+      setShowAddWrestlerModal(false);
   };
 
   const summaryStats = useMemo(() => {
@@ -769,6 +981,8 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
       setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
   };
 
+  const hasMatches = results && results.matches && results.matches.length > 0;
+
   return (
     <div className="max-w-7xl mx-auto space-y-4 animate-in fade-in slide-in-from-right-8 duration-500 flex flex-col h-full">
       
@@ -781,6 +995,9 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
       )}
       {showAddModal && selectedWrestler && (
           <AddMatchModal wrestler={selectedWrestler} allWrestlers={results.wrestlerStats} currentMatches={results.matches} matchRules={event.matchRules} onClose={() => setShowAddModal(false)} onAddMatch={handleAddMatch} />
+      )}
+      {showAddWrestlerModal && (
+          <AddWrestlerModal teams={event.participatingTeams || []} onClose={() => setShowAddWrestlerModal(false)} onAdd={handleAddNewWrestler} />
       )}
 
       {/* HEADER */}
@@ -795,10 +1012,20 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
                             Clear Results
                         </Button>
                     )}
-                    {/* ADDED: whitespace-nowrap to prevent wrapping */}
-                    <Button onClick={handleRun} disabled={isRunning} className="w-40 justify-center shadow-lg shadow-blue-900/20 whitespace-nowrap">
-                        {isRunning ? <RefreshCw className="animate-spin mr-2" size={16}/> : <Swords size={16} className="mr-2"/>}
-                        {isRunning ? 'Processing...' : 'Run Matchmaker'}
+                    {/* ADDED: Add Wrestler Button */}
+                    <Button onClick={() => setShowAddWrestlerModal(true)} variant="secondary" className="border-slate-600">
+                        <UserPlus size={16} className="mr-2"/> Add Wrestler
+                    </Button>
+
+                    <Button onClick={handleRun} disabled={isRunning} className="w-48 justify-center shadow-lg shadow-blue-900/20 whitespace-nowrap">
+                        {isRunning ? (
+                            <RefreshCw className="animate-spin mr-2" size={16}/>
+                        ) : hasMatches ? (
+                            <RotateCcw size={16} className="mr-2"/>
+                        ) : (
+                            <Play size={16} className="mr-2 fill-current"/>
+                        )}
+                        {isRunning ? 'Processing...' : hasMatches ? 'Re-Run' : 'Run Matchmaker'}
                     </Button>
                 </div>
             }
@@ -890,11 +1117,16 @@ const Step4_Matchmaking = ({ event, onUpdate }) => {
                           <div className="relative">
                               <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" />
                               <input 
-                                  className="bg-slate-950 border border-slate-700 rounded pl-8 pr-2 py-1 text-xs text-white outline-none focus:border-blue-500 w-40"
+                                  className="bg-slate-950 border border-slate-700 rounded pl-8 pr-8 py-1 text-xs text-white outline-none focus:border-blue-500 w-40"
                                   placeholder="Search Name..."
                                   value={searchFilter}
                                   onChange={e => setSearchFilter(e.target.value)}
                               />
+                              {searchFilter && (
+                                  <button onClick={() => setSearchFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white p-1">
+                                      <X size={14} />
+                                  </button>
+                              )}
                           </div>
                       </div>
                       <div className="text-xs text-slate-500">{filteredWrestlers.length} Wrestlers</div>

@@ -226,30 +226,32 @@ const MoveMatchModal = ({ match, maxMatches, mats, onClose, onMove }) => {
                         <div className="text-xs text-slate-400 mt-1">{match.w1.firstName} {match.w1.lastName} vs {match.w2.firstName} {match.w2.lastName}</div>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">New Mat</label>
-                        <select 
-                            className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
-                            value={targetMat}
-                            onChange={e => setTargetMat(e.target.value)}
-                        >
-                            {mats.map(m => <option key={m} value={m}>Mat {m}</option>)}
-                        </select>
-                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">New Mat</label>
+                            <select 
+                                className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
+                                value={targetMat}
+                                onChange={e => setTargetMat(e.target.value)}
+                            >
+                                {mats.map(m => <option key={m} value={m}>Mat {m}</option>)}
+                            </select>
+                        </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">New Match Number</label>
-                        <input 
-                            type="number"
-                            min="1"
-                            max={maxMatches + 5} 
-                            className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
-                            value={targetMatchNum}
-                            onChange={e => setTargetMatchNum(e.target.value)}
-                        />
-                        <p className="text-[10px] text-slate-500 mt-1">
-                            Current matches at this position or later will shift down.
-                        </p>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1 uppercase">New Match #</label>
+                            <input 
+                                type="number"
+                                min="1"
+                                max={maxMatches + 5} 
+                                className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-white outline-none focus:border-blue-500"
+                                value={targetMatchNum}
+                                onChange={e => setTargetMatchNum(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div className="text-[10px] text-slate-500 text-center">
+                        Matches will shift automatically to accommodate this move.
                     </div>
                 </div>
                 <div className="p-4 border-t border-slate-800 flex justify-end gap-2">
@@ -383,19 +385,6 @@ const RestIssuesModal = ({ violations, allMatches, onClose }) => {
     );
 };
 
-const EditableCell = ({ value, onChange, type="text", className="" }) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [tempValue, setTempValue] = useState(value);
-    useEffect(() => { setTempValue(value); }, [value]);
-    const handleCommit = () => { setIsEditing(false); if (tempValue !== value) onChange(tempValue); };
-    const handleKeyDown = (e) => { if (e.key === 'Enter') handleCommit(); if (e.key === 'Escape') { setTempValue(value); setIsEditing(false); } };
-
-    if (isEditing) {
-        return <input type={type} autoFocus className={`w-16 bg-blue-900/50 text-white font-bold text-center border border-blue-500 rounded outline-none p-1 ${className}`} value={tempValue} onChange={e => setTempValue(e.target.value)} onBlur={handleCommit} onKeyDown={handleKeyDown} />;
-    }
-    return <div onClick={() => setIsEditing(true)} className={`cursor-pointer hover:bg-slate-700/50 rounded px-2 py-1 transition-colors flex items-center justify-center gap-1 group ${className}`}>{value}<Edit2 size={10} className="text-slate-600 opacity-0 group-hover:opacity-100" /></div>;
-};
-
 // --- MAIN COMPONENT ---
 
 const Step5_Sequencing = ({ event, onUpdate }) => {
@@ -416,6 +405,7 @@ const Step5_Sequencing = ({ event, onUpdate }) => {
 
     const handleGenerate = () => {
         if (!event.matchups || event.matchups.length === 0) { alert("No matchups found. Please complete Step 4 first."); return; }
+        
         setIsGenerating(true);
         setTimeout(() => {
             const newSchedule = generateSchedule(event.matchups, config);
@@ -423,6 +413,12 @@ const Step5_Sequencing = ({ event, onUpdate }) => {
             onUpdate(event.id, { sequencing: newSchedule, schedulingStatus: 'complete' });
             setIsGenerating(false);
         }, 600);
+    };
+
+    const handleReRun = () => {
+        if (confirm("Re-generating the schedule will overwrite all manual changes and movements. Continue?")) {
+            handleGenerate();
+        }
     };
 
     const handleClear = () => {
@@ -436,45 +432,33 @@ const Step5_Sequencing = ({ event, onUpdate }) => {
     const handleMoveMatch = (matchId, targetMatId, targetMatchNum) => {
         if (!schedule) return;
 
-        // 1. Isolate Moving Match
+        // 1. Get the match
         const matchToMove = schedule.find(m => m.id === matchId);
         if (!matchToMove) return;
 
-        const sourceMatId = matchToMove.matId;
-        const sourceMatchNum = matchToMove.boutNumber; // Old bout number
+        // 2. Remove match from list temporarily
+        let tempSchedule = schedule.filter(m => m.id !== matchId);
 
-        // 2. Separate all other matches
-        let otherMatches = schedule.filter(m => m.id !== matchId);
+        // 3. Renumber the remaining list to "close the gap" 
+        // This ensures indices are compact (1, 2, 3...) regardless of where we removed from
+        tempSchedule = renumberSchedule(tempSchedule);
 
-        // 3. Shift matches on TARGET mat: If matchNum >= targetMatchNum, increment their number
-        // This opens up the slot for our incoming match
-        if (targetMatId) {
-            otherMatches = otherMatches.map(m => {
-                if (m.matId === targetMatId && m.boutNumber >= targetMatchNum) {
-                    return { ...m, boutNumber: m.boutNumber + 1 };
-                }
-                return m;
-            });
-        }
+        // 4. Shift items on the TARGET mat to make room for the new match
+        tempSchedule = tempSchedule.map(m => {
+            if (m.matId === targetMatId && m.boutNumber >= targetMatchNum) {
+                return { ...m, boutNumber: m.boutNumber + 1 };
+            }
+            return m;
+        });
 
-        // 4. Update the moved match
+        // 5. Insert the moved match at the target location
         const updatedMatch = { ...matchToMove, matId: targetMatId, boutNumber: targetMatchNum };
-        
-        // 5. Recombine
-        let newSchedule = [...otherMatches, updatedMatch];
+        tempSchedule.push(updatedMatch);
 
-        // 6. Close gap on SOURCE mat (optional but good for hygiene)
-        // Only if we moved it out of sequence or changed mats.
-        // Actually, renumberSchedule handles the closing of gaps automatically for every mat.
-        // But renumberSchedule sorts by boutNumber. If we just inserted at '10', and something was at '10' (now '11'),
-        // renumberSchedule will keep them in that order.
-        
-        // Let's rely on renumberSchedule to enforce 1-n for all mats, 
-        // preserving the relative order we just established with the shift.
-        newSchedule = renumberSchedule(newSchedule);
-
-        // 7. Validate
-        const validated = validateSchedule(newSchedule, config.minRest);
+        // 6. Sort and final validation
+        // renumberSchedule sorts by boutNumber, so our new match will land in the correct visual order
+        const finalSchedule = renumberSchedule(tempSchedule);
+        const validated = validateSchedule(finalSchedule, config.minRest);
         
         setSchedule(validated);
         onUpdate(event.id, { sequencing: validated });
@@ -548,7 +532,7 @@ const Step5_Sequencing = ({ event, onUpdate }) => {
                                 {isGenerating ? 'Calculating...' : 'Generate Schedule'} <Play size={16} className="ml-2 fill-current"/>
                             </Button>
                         )}
-                        {schedule && <Button onClick={handleGenerate} variant="secondary" className="border-slate-600">Re-Run <ArrowRightLeft size={16} className="ml-2"/></Button>}
+                        {schedule && <Button onClick={handleReRun} variant="secondary" className="border-slate-600">Re-Run <ArrowRightLeft size={16} className="ml-2"/></Button>}
                     </div>
                 }
             />
@@ -562,23 +546,34 @@ const Step5_Sequencing = ({ event, onUpdate }) => {
                         </div>
                         {schedule && (
                             <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 rounded-lg border border-slate-700">
-                                    <Filter size={14} className="text-slate-400" />
-                                    {viewMode === 'by_mat' ? (
-                                        <select value={filterMat} onChange={(e) => setFilterMat(e.target.value)} className="bg-slate-950 text-xs font-bold text-white outline-none">
-                                            <option value="All">All Mats</option>
-                                            {Array.from({length: config.matsAvailable}, (_, i) => i + 1).map(num => <option key={num} value={num}>Mat {num}</option>)}
-                                        </select>
-                                    ) : (
-                                        <select value={filterTeam} onChange={(e) => setFilterTeam(e.target.value)} className="bg-slate-950 text-xs font-bold text-white outline-none max-w-[150px]">
-                                            <option value="All">All Teams</option>
-                                            {teams.map(t => <option key={t} value={t}>{t}</option>)}
-                                        </select>
-                                    )}
-                                </div>
+                                <Filter size={16} className="text-slate-500" />
+                                {viewMode === 'by_mat' ? (
+                                    <select 
+                                        value={filterMat} 
+                                        onChange={(e) => setFilterMat(e.target.value)} 
+                                        className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500"
+                                    >
+                                        <option value="All">All Mats</option>
+                                        {Array.from({length: config.matsAvailable}, (_, i) => i + 1).map(num => <option key={num} value={num}>Mat {num}</option>)}
+                                    </select>
+                                ) : (
+                                    <select 
+                                        value={filterTeam} 
+                                        onChange={(e) => setFilterTeam(e.target.value)} 
+                                        className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500 max-w-[150px]"
+                                    >
+                                        <option value="All">All Teams</option>
+                                        {teams.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                )}
                                 <div className="relative">
                                     <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
                                     <input type="text" placeholder="Search wrestler..." value={wrestlerSearch} onChange={(e) => setWrestlerSearch(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white outline-none focus:border-blue-500 w-48" />
+                                    {wrestlerSearch && (
+                                        <button onClick={() => setWrestlerSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white p-1">
+                                            <X size={12} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -641,20 +636,10 @@ const Step5_Sequencing = ({ event, onUpdate }) => {
                                                     {m.w1.firstName} {m.w1.lastName}
                                                 </td>
                                                 <td className="px-2 py-2 text-center bg-slate-800/30">
-                                                    <EditableCell 
-                                                        value={m.matId} 
-                                                        type="number"
-                                                        onChange={(val) => handleMoveMatch(m.id, parseInt(val), m.boutNumber)} 
-                                                        className="font-mono text-white font-bold"
-                                                    />
+                                                    <span className="font-mono text-white font-bold">{m.matId}</span>
                                                 </td>
                                                 <td className="px-2 py-2 text-center border-r border-slate-800">
-                                                    <EditableCell 
-                                                        value={m.boutNumber} 
-                                                        type="number"
-                                                        onChange={(val) => handleMoveMatch(m.id, m.matId, parseInt(val))} 
-                                                        className="font-mono text-slate-300"
-                                                    />
+                                                    <span className="font-mono text-slate-300">{m.boutNumber}</span>
                                                 </td>
                                                 <td className={`px-4 py-2 border-r border-slate-800 font-medium ${m.hasRestViolation && m.restViolationReason.includes(m.w2.lastName) ? 'text-red-400' : 'text-white'}`}>
                                                     {m.w2.firstName} {m.w2.lastName}
