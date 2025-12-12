@@ -15,7 +15,8 @@ import {
   onSnapshot, 
   query,
   where,
-  serverTimestamp 
+  serverTimestamp,
+  getDoc 
 } from 'firebase/firestore';
 import { 
   LayoutDashboard, 
@@ -27,8 +28,8 @@ import {
   X, 
   Settings, 
   MapPin, 
-  Mail,
-  Lock,
+  Mail, 
+  Lock, 
   AlertTriangle 
 } from 'lucide-react';
 
@@ -43,9 +44,11 @@ import RosterEditor from './components/RosterEditor';
 import CreateTeamModal from './components/CreateTeamModal'; 
 import TeamList from './components/TeamList';
 import PageHeader from './components/PageHeader'; 
+import EventPublicView from './components/EventPublicView'; 
+import HomePage from './components/HomePage'; // NEW IMPORT
 
 // --- COMPONENT: LOGIN PAGE ---
-const LoginPage = () => {
+const LoginPage = ({ onBack }) => { // Added onBack prop
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true); // Toggle between Login and Sign Up
@@ -85,7 +88,15 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 animate-in fade-in duration-700">
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 animate-in fade-in duration-700 relative">
+      {/* Back Button */}
+      <button 
+        onClick={onBack}
+        className="absolute top-4 left-4 p-2 text-slate-400 hover:text-white flex items-center gap-2 transition-colors rounded-lg hover:bg-slate-800"
+      >
+        <ChevronLeft size={20} /> Back to Home
+      </button>
+
       <div className="max-w-md w-full space-y-8 text-center">
         <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800 shadow-2xl backdrop-blur-xl">
           
@@ -432,8 +443,7 @@ const TeamDashboard = ({ team, user, onBack }) => {
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                <Mail size={14}/> Assistant Coaches (Max 2)
-                            </label>
+                                <Mail size={14}/> Assistant Coaches (Max 2)</label>
                             <textarea 
                                 className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none h-24 resize-none"
                                 placeholder="Enter email addresses, separated by commas..."
@@ -524,10 +534,67 @@ export default function App() {
   // Create Team Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Auth Listener (Updated for Google Auth)
+  // --- PUBLIC EVENT STATE ---
+  const [publicEvent, setPublicEvent] = useState(null);
+  const [hostName, setHostName] = useState('');
+  const [isPublicLoading, setIsPublicLoading] = useState(false);
+
+  // NEW: State for Unauthenticated View Navigation (Home vs Login)
+  const [authView, setAuthView] = useState('home'); // 'home' | 'login'
+
+  // 1. URL ROUTING CHECK
   useEffect(() => {
-    // We do NOT use signInAnonymously anymore.
-    // Instead we wait for the user to login via the LoginPage
+    const params = new URLSearchParams(window.location.search);
+    const teamId = params.get('team');
+    const eventId = params.get('event');
+
+    if (teamId && eventId) {
+        setIsPublicLoading(true);
+        // Fetch Public Event
+        const fetchPublicEvent = async () => {
+            try {
+                // Fetch Event
+                const eventRef = doc(db, 'artifacts', appId, COLLECTIONS.TEAMS, teamId, COLLECTIONS.EVENTS, eventId);
+                
+                // Real-time listener for the public event
+                const unsubEvent = onSnapshot(eventRef, async (docSnap) => {
+                    if (docSnap.exists()) {
+                        const eventData = { id: docSnap.id, ...docSnap.data() };
+                        
+                        // Check if published
+                        if (eventData.schedulingStatus === 'published') {
+                            setPublicEvent(eventData);
+                            
+                            // EXTRACT HOST NAME FROM EVENT DATA (Avoid extra permission-locked fetch)
+                            // Look for the team with isHost: true, or default to the first team
+                            const host = eventData.participatingTeams?.find(t => t.isHost) || eventData.participatingTeams?.[0];
+                            if (host) {
+                                setHostName(host.name);
+                            } else {
+                                setHostName("Event Host");
+                            }
+                        } else {
+                            // If unpublished while viewing, redirect or show error
+                            setPublicEvent(null); 
+                        }
+                    } else {
+                        console.error("Event not found");
+                    }
+                    setIsPublicLoading(false);
+                });
+
+                return () => unsubEvent();
+            } catch (error) {
+                console.error("Error fetching public event:", error);
+                setIsPublicLoading(false);
+            }
+        };
+        fetchPublicEvent();
+    }
+  }, []);
+
+  // 2. AUTH LISTENER
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -535,9 +602,9 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // Fetch User's Teams
+  // 3. FETCH TEAMS (Authenticated)
   useEffect(() => {
-    if (!user) {
+    if (!user || !user.uid) {
         setUserTeams([]);
         return;
     }
@@ -565,20 +632,52 @@ export default function App() {
           setCurrentTeam(null);
           setUserTeams([]);
           await signOut(auth);
-          // App will naturally re-render the LoginPage due to !user check
+          setAuthView('home'); // Reset to home on sign out
       } catch (error) {
           console.error("Error signing out:", error);
       }
   };
 
-  if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">Loading Pinpoint...</div>;
+  // --- EVENT SELECTION HANDLER (for Home Page) ---
+  const handleEventSelect = (teamId, eventId) => {
+      // Manually set URL params without reload (single page feel)
+      const url = new URL(window.location);
+      url.searchParams.set('team', teamId);
+      url.searchParams.set('event', eventId);
+      window.history.pushState({}, '', url);
+      
+      // Trigger the existing loading logic by effectively 're-running' the effect 
+      // or just manually setting the state if we have the data.
+      // Easiest is to force a reload or re-trigger the check.
+      // Better: Manually fetch it here to avoid a reload.
+      
+      setIsPublicLoading(true);
+      // ... Re-use the fetch logic (omitted for brevity, but could extract to function)
+      // For MVP simplicity, we can reload to trigger the existing useEffect hook:
+      window.location.reload(); 
+  };
 
-  // --- UNAUTHENTICATED STATE ---
-  if (!user) {
-      return <LoginPage />;
+  // --- RENDER LOGIC ---
+
+  // 1. Public Event View (Priority)
+  if (publicEvent) {
+      return <EventPublicView event={publicEvent} hostName={hostName} />;
   }
 
-  // --- AUTHENTICATED STATE ---
+  // 2. Loading State
+  if (loading || isPublicLoading) {
+      return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">Loading Pinpoint...</div>;
+  }
+
+  // 3. Unauthenticated Views
+  if (!user) {
+      if (authView === 'login') {
+          return <LoginPage onBack={() => setAuthView('home')} />;
+      }
+      return <HomePage onLogin={() => setAuthView('login')} onEventSelect={handleEventSelect} />;
+  }
+
+  // 4. Authenticated -> Dashboard
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-blue-500/30 overflow-hidden flex flex-col">
       {/* Top Nav */}

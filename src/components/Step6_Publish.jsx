@@ -11,13 +11,12 @@ import {
   Copy,
   Mail,
   X,
-  Plus,
   AlertCircle,
   Loader,
   FileSpreadsheet, // Added for Excel icon
   Users // Added for Share Event icon
 } from 'lucide-react';
-import { Button, Card, formatDate } from '../utils';
+import { Button, Card } from '../utils';
 import PageHeader from './PageHeader';
 
 const StatCard = ({ label, value, subtext, icon: Icon, color }) => (
@@ -168,8 +167,12 @@ const Step6_Publish = ({ event, onUpdate }) => {
   // Configuration for Stats
   const mats = event.eventParameters?.mats || 4;
   
-  // Mock Public URL
-  const publicUrl = `https://pinpoint.app/events/${event.id}`;
+  // --- DYNAMIC PUBLIC URL ---
+  // Calculates the correct URL to share based on the current environment (localhost or prod)
+  // and injects the Host Team ID and Event ID as query parameters.
+  const hostTeam = event.participatingTeams?.find(t => t.isHost);
+  const hostTeamId = hostTeam?.id || event.participatingTeams?.[0]?.id; // Fallback to first team if no host marked
+  const publicUrl = `${window.location.origin}/?team=${hostTeamId}&event=${event.id}`;
 
   const handleTogglePublish = () => {
     const newStatus = isPublished ? 'complete' : 'published';

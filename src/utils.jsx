@@ -1,8 +1,25 @@
 import React from 'react';
 
 // Date Formatter
+// UPDATED: Now parses YYYY-MM-DD strings explicitly as local dates to prevent timezone shifts.
 export const formatDate = (dateString) => {
   if (!dateString) return 'TBD';
+  
+  // Check if it's a simple YYYY-MM-DD string
+  if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      const [year, month, day] = dateString.split('-').map(Number);
+      // Create date using local constructor (Month is 0-indexed)
+      const localDate = new Date(year, month - 1, day);
+      
+      return localDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+  }
+
+  // Fallback for ISO strings or other formats
   return new Date(dateString).toLocaleDateString('en-US', {
     weekday: 'short',
     year: 'numeric',
