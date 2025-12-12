@@ -87,7 +87,7 @@ const CompactMatchCard = ({ match, isHighlighted, onClick }) => (
     </div>
 );
 
-const EventPublicView = ({ event, hostName, onBack }) => { 
+const EventPublicView = ({ event, hostName, onBack, user }) => { // Added 'user' prop
   const [viewMode, setViewMode] = useState('by_mat'); // 'by_mat' | 'by_team'
   const [matDisplayMode, setMatDisplayMode] = useState('cards'); // 'cards' | 'table'
   const [filterTeam, setFilterTeam] = useState('All');
@@ -202,35 +202,37 @@ const EventPublicView = ({ event, hostName, onBack }) => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex flex-col selection:bg-blue-500/30">
       
-      {/* --- UNIFIED HEADER --- */}
-      <nav className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            
-            {/* Logo/Home Link */}
-            <a href="/" className="flex items-center gap-3">
-              <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 p-2 rounded-lg">
-                <Users className="text-white" size={20} />
-              </div>
-              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 hidden sm:block">
-                Pinpoint Matchups
-              </span>
-            </a>
+      {/* --- UNIFIED HEADER (ONLY IF NOT LOGGED IN) --- */}
+      {!user && (
+        <nav className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-16 items-center">
+                
+                {/* Logo/Home Link */}
+                <a href="/" className="flex items-center gap-3">
+                <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 p-2 rounded-lg">
+                    <Users className="text-white" size={20} />
+                </div>
+                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 hidden sm:block">
+                    Pinpoint Matchups
+                </span>
+                </a>
 
-            <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
-                <a href="#" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">How it Works</a>
-                <a href="#" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Pricing</a>
+                <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+                    <a href="#" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">How it Works</a>
+                    <a href="#" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Pricing</a>
+                </div>
+
+                <button 
+                    onClick={() => window.location.href = '/'} // Simple reset/login redirection
+                    className="text-sm font-bold text-slate-300 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg border border-slate-700"
+                >
+                    Log In
+                </button>
             </div>
-
-            <button 
-                onClick={() => window.location.href = '/'} // Simple reset/login redirection
-                className="text-sm font-bold text-slate-300 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg border border-slate-700"
-            >
-                Log In
-            </button>
-          </div>
-        </div>
-      </nav>
+            </div>
+        </nav>
+      )}
 
       {/* --- EVENT SUB-HEADER --- */}
       <div className="bg-slate-950 border-b border-slate-800 p-4">
@@ -486,17 +488,19 @@ const EventPublicView = ({ event, hostName, onBack }) => {
         </div>
       </div>
 
-      {/* --- UNIFIED FOOTER --- */}
-      <footer className="border-t border-slate-800 bg-slate-900/50 py-8 mt-auto shrink-0">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center text-slate-500 text-sm gap-4">
-            <p>&copy; {new Date().getFullYear()} Pinpoint Matchups. All rights reserved.</p>
-            <div className="flex gap-6">
-                <a href="#" className="hover:text-slate-300 transition-colors">Privacy Policy</a>
-                <a href="#" className="hover:text-slate-300 transition-colors">Terms of Service</a>
-                <a href="#" className="hover:text-slate-300 transition-colors">Contact Support</a>
+      {/* --- UNIFIED FOOTER (Only for unauthenticated view to avoid double footer) --- */}
+      {!user && (
+        <footer className="border-t border-slate-800 bg-slate-900/50 py-8 mt-auto shrink-0">
+            <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center text-slate-500 text-sm gap-4">
+                <p>&copy; {new Date().getFullYear()} Pinpoint Matchups. All rights reserved.</p>
+                <div className="flex gap-6">
+                    <a href="#" className="hover:text-slate-300 transition-colors">Privacy Policy</a>
+                    <a href="#" className="hover:text-slate-300 transition-colors">Terms of Service</a>
+                    <a href="#" className="hover:text-slate-300 transition-colors">Contact Support</a>
+                </div>
             </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 };

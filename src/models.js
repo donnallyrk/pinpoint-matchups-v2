@@ -10,10 +10,30 @@ export const COLLECTIONS = {
   USERS: 'users',
   TEAMS: 'teams',
   EVENTS: 'schedules',
-  ROSTER: 'roster'
+  ROSTER: 'roster',
+  INVITES: 'invites' // Added for future Invite system
 };
 
 // --- FACTORIES ---
+
+/**
+ * Creates a new User Profile
+ * Tiers: 'free', 'fan', 'coach', 'admin'
+ */
+export const createUser = (authData) => ({
+  uid: authData.uid,
+  email: authData.email,
+  displayName: authData.displayName || '',
+  photoURL: authData.photoURL || '',
+  tier: 'free', // Default to Free Tier
+  subscription: {
+    status: 'inactive', // 'active', 'past_due', 'canceled'
+    planId: null,
+    periodEnd: null
+  },
+  createdAt: serverTimestamp(),
+  lastLogin: serverTimestamp()
+});
 
 export const createTeam = (ownerId, name, abbreviation = '', coaches = []) => ({
   metadata: {
